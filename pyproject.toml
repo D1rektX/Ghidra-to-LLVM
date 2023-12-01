@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "ghidra-to-llvm"
+version = "0.1.0"
+description = ""
+authors = ["Pascal Osterwinter <pascal.osterwinter@spotgroup.de>"]
+readme = "README.md"
+packages = [{include = "ghidra_to_llvm"}]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+llvmlite = "^0.41.1"
+graphviz = "^0.20.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
