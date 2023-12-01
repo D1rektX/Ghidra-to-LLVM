@@ -2,24 +2,50 @@
 
 import importlib
 import argparse
+import shutil
 import subprocess
+import sys
 
 xmltollvm = importlib.import_module('src.xmltollvm')
 opt_verify = importlib.import_module('src.lifting-opt-verify')
 
+# windows
+base_dir_win = "C:\\Users\\pasca\\Documents\\Code\\Uni\\iOSBinaryAnalysisLab\\"
+ghidra_headless_loc_win = base_dir_win + "lifter\\ghidra\\ghidra_10.4_PUBLIC\\support\\analyzeHeadless.bat"
+prj_dir_win = base_dir_win + "lifter\\ghidra"
+script_dir_win = "C:\\Users\\pasca\\Documents\\Code\\Uni\\Ghidra-to-LLVM\\src"
+xml_tmp_file_win = "C:\\Users\\pasca\\Documents\\Code\\Uni\\iOSBinaryAnalysisLab\\lifter\\ghidra\\GhidraScripts\\output.xml"
+output_dir_win = base_dir_win + "results\\"
+# linux
+
+base_dir_lin = "/home/pascal/Documents/Uni/iOSBinaryAnalysisLab/"
+ghidra_headless_loc_lin = base_dir_lin + "lifter/ghidra/ghidra_10.4_PUBLIC/support/analyzeHeadless"
+prj_dir_lin = base_dir_lin + "lifter/ghidra"
+script_dir_lin = base_dir_lin + "lifter/ghidra/Ghidra-to-LLVM/src"
+xml_tmp_file_lin = "/tmp/output.xml"
+output_dir_lin = base_dir_lin + "results/"
+
+
 # These need to change in your local installation
-ghidra_headless_loc = "/home/tej/buildsGhidra/ghidra_9.1.1_PUBLIC/support/analyzeHeadless"
-prj_dir = "/home/tej/GhidraProjects/"
+ghidra_headless_loc = ghidra_headless_loc_lin
+prj_dir = prj_dir_lin
+script_dir = script_dir_lin
+xml_tmp_file = xml_tmp_file_lin
+output_dir = output_dir_lin
+# chose if ghidra should run
+recompile = False
+
 
 # These shouldn't need to be changed
 prj_name = "lifting"
-xml_script = "./src/GhidraToXML.java"
+xml_script = "GhidraToXML.java"
 
 # Argument parsing
 parser = argparse.ArgumentParser(description = 'This script lifts a binary from executable to LLVM IR.')
 parser.add_argument('input_file', action='store')
 parser.add_argument('-out', action='store_true', help='emit intermediate files', default=False, dest='out')
 parser.add_argument('-opt', action='store', help='select optimization level 0-3', default=None, dest='opt')
+parser.add_argument('-o', action='store', help='LLVM IR output path', default=None, dest='output')
 parser.add_argument('-cfg', action='store_true', help='emit cfg', default=False, dest='cfg')
 results = parser.parse_args()
 
@@ -32,12 +58,42 @@ else:
     opt_level = results.opt
 
 # Convert P-code to XML
-subprocess.run([ghidra_headless_loc, prj_dir, prj_name, '-import', results.input_file,
-                '-postScript', xml_script, '-overwrite', '-deleteProject'])
-filename = results.input_file.split('/')[-1]
-xmlfile = './' + filename + '.xml'
-subprocess.run(['mv', '/tmp/output.xml', xmlfile])
+# Convert P-code to XML
+if recompile:
+    subprocess.run([
+        ghidra_headless_loc,  # Path to the Ghidra analyzeHeadless executable
+        prj_dir,  # Path to the Ghidra project directory
+        prj_name,  # Ghidra project name
+        '-import',  # Import command to specify that you want to import a binary
+        results.input_file,  # Path to the input binary file to be imported
+        '-scriptPath',  # Path to the ghidra scripts
+        script_dir,
+        '-postScript',  # PostScript command to specify that you want to run a script after import
+        xml_script,  # Name of the GhidraToXML.java script
+        '-overwrite',  # Overwrite command to specify that you want to overwrite an existing project
+        '-deleteProject'  # DeleteProject command to specify that you want to delete the existing project
+    ])
 
+# get line seperator
+if sys.platform.startswith('win'):
+    # Windows-specific code
+    seperator = "\\"
+else:
+    seperator = "/"
+    # Add code specific to Windows here
+
+filename = results.input_file.split(seperator)[-1]
+xmlfile = output_dir + filename + '.xml'
+# subprocess.run(['mv', xml_tmp_file, xmlfile])
+# Copy the file
+shutil.copyfile(xml_tmp_file, xmlfile)
+# shutil.move(xml_tmp_file, xmlfile)
+
+print("-----------------------------------------------------")
+
+print("-----------------------------------------------------")
+print("-----------------------------------------------------")
+print("-----------------------------------------------------")
 # Lift to LLVM
 module = xmltollvm.lift(xmlfile)
 llvmlitefile = str(filename + '.llvmlite')
@@ -51,6 +107,10 @@ module = opt_verify.optimize(module, opt_level)
 # Verify
 module = opt_verify.verify(module)
 llfile = str(filename + '.ll')
+if results.output:
+    llfile = results.output
+else:
+    llfile = str(filename + '.ll')
 f = open(llfile, 'w')
 f.write(str(module))
 f.close()

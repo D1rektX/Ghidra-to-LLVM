@@ -15,9 +15,13 @@ import javax.xml.transform.stream.StreamResult;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+
+import generic.util.Path;
+
 import org.w3c.dom.Attr;
 
 import ghidra.app.decompiler.DecompInterface;
+import ghidra.app.decompiler.DecompileException;
 import ghidra.app.decompiler.DecompileOptions;
 import ghidra.app.decompiler.DecompileResults;
 import ghidra.app.util.headless.HeadlessScript;
@@ -34,6 +38,8 @@ import ghidra.program.model.pcode.PcodeOp;
 import ghidra.program.model.pcode.Varnode;
 
 import java.io.File;
+import java.nio.file.InvalidPathException;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -43,6 +49,12 @@ public class GhidraToXML extends HeadlessScript {
     @Override
     protected void run() throws Exception {
 
+    	// check for arguments
+    	String defaultOutputPath = getOSDefaultPath();
+        File outputFile = new File(defaultOutputPath);
+
+        println("writing output to " + outputFile.getAbsolutePath());
+
         DocumentBuilderFactory dFactory = DocumentBuilderFactory.newInstance();
         DocumentBuilder dBuilder = dFactory.newDocumentBuilder();
         Document doc = dBuilder.newDocument();
@@ -51,10 +63,6 @@ public class GhidraToXML extends HeadlessScript {
         Element rootElement = doc.createElement("program");
         doc.appendChild(rootElement);
 
-        DecompileOptions options = new DecompileOptions();
-        DecompInterface ifc = new DecompInterface();
-        ifc.setOptions(options);
-        ifc.setSimplificationStyle("decompile");
         Language language = currentProgram.getLanguage();
         AddressSetView set = currentProgram.getMemory().getExecuteSet();
         Listing listing = currentProgram.getListing();
@@ -70,11 +78,11 @@ public class GhidraToXML extends HeadlessScript {
 
         ArrayList<String> memoryList = new ArrayList<>();
         ArrayList<String> memorySize = new ArrayList<>();
-
-        while (fi.hasNext()) {
+        System.out.println("Looping over functions");
+        while (fi.hasNext()) { // loop through functions
             func = fi.next();
 
-            // function element
+
             Element functionElement = doc.createElement("function");
             rootElement.appendChild(functionElement);
             Attr fnameAttr = doc.createAttribute("name");
@@ -85,8 +93,31 @@ public class GhidraToXML extends HeadlessScript {
             fAddress.setValue(func.getEntryPoint().toString());
             functionElement.setAttributeNode(fAddress);
 
-            DecompileResults results = ifc.decompileFunction(func, 300, null);
+            DecompileOptions options = new DecompileOptions();
+
+    		DecompInterface ifc = new DecompInterface();
+
+            DecompileResults results;
+
+            try {
+            	ifc.setOptions(options);
+    			if (!ifc.openProgram(this.currentProgram)) {
+    				throw new DecompileException("Decompiler",
+    					"Unable to initialize: " + ifc.getLastMessage());
+    			}
+    			ifc.setSimplificationStyle("decompile");
+
+    			results = ifc.decompileFunction(func, 300, null);
+    		} catch (Exception e) {
+    			System.out.println("Error decompiling " + func.getName());
+    			continue;
+			}
+    		finally {
+    			ifc.dispose();
+    		}
+
             HighFunction high = results.getHighFunction();
+
             Element foutputElement = doc.createElement("output");
             functionElement.appendChild(foutputElement);
             Attr foutputAttr = doc.createAttribute("type");
@@ -200,7 +231,7 @@ public class GhidraToXML extends HeadlessScript {
             }
         }
         int x = 0;
-        while (x < registerList.size()){
+        while (x < registerList.size()){ // loop through registers
             Element register = doc.createElement("register");
             Attr name = doc.createAttribute("name");
             name.setValue(registerList.get(x));
@@ -227,7 +258,25 @@ public class GhidraToXML extends HeadlessScript {
         TransformerFactory transformerFactory = TransformerFactory.newInstance();
         Transformer transformer = transformerFactory.newTransformer();
         DOMSource source = new DOMSource(doc);
-        StreamResult result = new StreamResult(new File("/tmp/output.xml"));
+        StreamResult result = new StreamResult(outputFile);
+
         transformer.transform(source, result);
+    }
+
+    private String getOSDefaultPath() {
+        String os = System.getProperty("os.name");
+    	if (os != null) {
+            os = os.toLowerCase();
+
+            if (os.contains("win")) {
+                return "C:\\Users\\pasca\\Documents\\Code\\Uni\\iOSBinaryAnalysisLab\\lifter\\ghidra\\GhidraScripts\\output.xml";
+            } else{
+                return "/tmp/output.xml";
+            }
+        } else {
+            System.out.println("OS name is null.");
+            return "/tmp/output.xml";
+        }
+        //return "/tmp/output.xml";
     }
 }

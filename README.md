@@ -44,3 +44,13 @@ Optional arguments:
 
 - Implement lifting using Ghidra's HighFunction (will eventually be the default)
 
+
+# Instructions
+
+## POPCOUNT
+XML:<name>POPCOUNT</name><input_0 size="8" storage="unique">u_13400:8</input_0></pcode_6><pcode_7><output size="1" storage="unique">u_13500:1</output> 
+
+INPUT: %"36" = and i64 %"35
+
+
+
