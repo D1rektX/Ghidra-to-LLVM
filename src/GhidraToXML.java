@@ -15,15 +15,17 @@ import javax.xml.transform.stream.StreamResult;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
+import org.w3c.dom.Attr;
 
 import generic.util.Path;
-
-import org.w3c.dom.Attr;
 
 import ghidra.app.decompiler.DecompInterface;
 import ghidra.app.decompiler.DecompileException;
 import ghidra.app.decompiler.DecompileOptions;
 import ghidra.app.decompiler.DecompileResults;
+import ghidra.app.plugin.assembler.Assembler;
+import ghidra.app.plugin.assembler.Assemblers;
+import ghidra.app.script.GhidraScript;
 import ghidra.app.util.headless.HeadlessScript;
 import ghidra.program.model.address.Address;
 import ghidra.program.model.address.AddressSetView;
@@ -36,6 +38,7 @@ import ghidra.program.model.listing.Listing;
 import ghidra.program.model.pcode.HighFunction;
 import ghidra.program.model.pcode.PcodeOp;
 import ghidra.program.model.pcode.Varnode;
+import ghidra.sleigh.grammar.SleighParser_SemanticParser.return_stmt_return;
 
 import java.io.File;
 import java.nio.file.InvalidPathException;
@@ -46,14 +49,78 @@ import java.util.List;
 
 public class GhidraToXML extends HeadlessScript {
 
+    private String getOSDefaultPath() {
+        String os = System.getProperty("os.name");
+    	if (os != null) {
+            os = os.toLowerCase();
+
+            if (os.contains("win")) {
+                return "C:\\Users\\pasca\\Documents\\Code\\Uni\\iOSBinaryAnalysisLab\\lifter\\ghidra\\GhidraScripts\\output.xml";
+            } else{
+                return "/tmp/output.xml";
+            }
+        } else {
+            log("OS name is null.");
+            return "/tmp/output.xml";
+        }
+        //return "/tmp/output.xml";
+    }
+
+    private void log(String msg) {
+    	println(msg);
+    	System.out.println(msg);
+    }
+
+    private void inspectInstructionAndPCodes(Instruction instruction){
+    	log("----------------------------------------------------------------");
+    	log("Instruction: " + instruction.toString());
+    	log(instruction.getMnemonicString());
+    	log("Address: " + instruction.getAddress());
+
+        PcodeOp[] pcode = instruction.getPcode();
+        // TODO - remove CALLOTHER
+
+        for (int i = 0; i < pcode.length; i++) {
+			log(pcode[i].getMnemonic());
+		}
+
+		// log("Next Address: ");
+		// log(instruction.next().getAddress().toString());
+    	log("----------------------------------------------------------------");
+    }
+
+    /*
+     * Taken from AssembleScript.java -> basic ghidra script
+     * TODO: check if instead of replacing the llvm translation needs to use atomic functions
+     * I.E.: ADD.LOCK -> replaced by ADD but this could have side effects ->
+     * so try with ADD.LOCK and translate this to atomic add in xmltollvm.py
+     */
+    private Instruction replaceCallother(Instruction instruction, Assembler asm, Listing listing) throws Exception{
+    	if(!instruction.toString().contains(".LOCK")) {
+        	log("Cannot replace instruction:" + instruction.getMnemonicString());
+        	log("At Address: " + instruction.getAddress());
+    		return instruction;
+    	}
+
+    	log("----------------------------------------------------------------");
+    	log("Instruction to replace: " + instruction.toString());
+    	log(instruction.getMnemonicString());
+    	log("Address: " + instruction.getAddress());
+
+        log("New instruction: " + instruction.toString().replace(".LOCK", ""));
+
+		asm.assemble(instruction.getAddress(), instruction.toString().replace(".LOCK", ""));
+    	log("----------------------------------------------------------------");
+		return listing.getInstructionAt(instruction.getAddress());
+    }
+
+
     @Override
     protected void run() throws Exception {
 
-    	// check for arguments
-    	String defaultOutputPath = getOSDefaultPath();
+        String defaultOutputPath = getOSDefaultPath();
         File outputFile = new File(defaultOutputPath);
 
-        println("writing output to " + outputFile.getAbsolutePath());
 
         DocumentBuilderFactory dFactory = DocumentBuilderFactory.newInstance();
         DocumentBuilder dBuilder = dFactory.newDocumentBuilder();
@@ -69,6 +136,8 @@ public class GhidraToXML extends HeadlessScript {
         FunctionIterator fi = listing.getFunctions(true);
         Function func = null;
 
+        Assembler asm = Assemblers.getAssembler(currentProgram);
+
         Element globals = doc.createElement("globals");
         rootElement.appendChild(globals);
         Element memory = doc.createElement("memory");
@@ -78,11 +147,11 @@ public class GhidraToXML extends HeadlessScript {
 
         ArrayList<String> memoryList = new ArrayList<>();
         ArrayList<String> memorySize = new ArrayList<>();
-        System.out.println("Looping over functions");
-        while (fi.hasNext()) { // loop through functions
+
+        while (fi.hasNext()) {
             func = fi.next();
 
-
+            // function element
             Element functionElement = doc.createElement("function");
             rootElement.appendChild(functionElement);
             Attr fnameAttr = doc.createAttribute("name");
@@ -92,6 +161,7 @@ public class GhidraToXML extends HeadlessScript {
             Attr fAddress = doc.createAttribute("address");
             fAddress.setValue(func.getEntryPoint().toString());
             functionElement.setAttributeNode(fAddress);
+
 
             DecompileOptions options = new DecompileOptions();
 
@@ -109,7 +179,7 @@ public class GhidraToXML extends HeadlessScript {
 
     			results = ifc.decompileFunction(func, 300, null);
     		} catch (Exception e) {
-    			System.out.println("Error decompiling " + func.getName());
+    			log("Error decompiling " + func.getName());
     			continue;
 			}
     		finally {
@@ -117,7 +187,6 @@ public class GhidraToXML extends HeadlessScript {
     		}
 
             HighFunction high = results.getHighFunction();
-
             Element foutputElement = doc.createElement("output");
             functionElement.appendChild(foutputElement);
             Attr foutputAttr = doc.createAttribute("type");
@@ -146,6 +215,17 @@ public class GhidraToXML extends HeadlessScript {
             while (ii.hasNext()) {
                 Instruction inst = ii.next();
                 PcodeOp[] pcode = inst.getPcode();
+                // TODO - remove CALLOTHER
+
+                for (int i = 0; i < pcode.length; i++) {
+    				if (pcode[i].getOpcode() == PcodeOp.CALLOTHER) {
+    					inst = replaceCallother(inst, asm, listing);
+    					break;
+    					// throw new Exception("ENDING THE SCRIPT.");
+    				}
+    			}
+
+                // END TODO
                 Element instructionElement = doc.createElement("instruction_" + y);
                 instructions.appendChild(instructionElement);
 
@@ -230,8 +310,8 @@ public class GhidraToXML extends HeadlessScript {
                 y++;
             }
         }
-        int x = 0;
-        while (x < registerList.size()){ // loop through registers
+        for (int x = 0; x < registerList.size(); x++) {
+            String regName = registerList.get(x);
             Element register = doc.createElement("register");
             Attr name = doc.createAttribute("name");
             name.setValue(registerList.get(x));
@@ -239,11 +319,13 @@ public class GhidraToXML extends HeadlessScript {
             Attr size = doc.createAttribute("size");
             size.setValue(registerSize.get(x));
             register.setAttributeNode(size);
+            Attr flags = doc.createAttribute("flags");
+            flags.setValue(Integer.toString(language.getRegister(regName).getTypeFlags()));
+            register.setAttributeNode(flags);
             globals.appendChild(register);
-            x++;
         }
-        x = 0;
-        while (x < memoryList.size()){
+
+        for (int x = 0; x < memoryList.size(); x++) {
             Element memory_val = doc.createElement("memory");
             Attr name = doc.createAttribute("name");
             name.setValue(memoryList.get(x));
@@ -252,31 +334,12 @@ public class GhidraToXML extends HeadlessScript {
             size.setValue(memorySize.get(x));
             memory_val.setAttributeNode(size);
             memory.appendChild(memory_val);
-            x++;
         }
         // write the content into xml file
         TransformerFactory transformerFactory = TransformerFactory.newInstance();
         Transformer transformer = transformerFactory.newTransformer();
         DOMSource source = new DOMSource(doc);
         StreamResult result = new StreamResult(outputFile);
-
         transformer.transform(source, result);
-    }
-
-    private String getOSDefaultPath() {
-        String os = System.getProperty("os.name");
-    	if (os != null) {
-            os = os.toLowerCase();
-
-            if (os.contains("win")) {
-                return "C:\\Users\\pasca\\Documents\\Code\\Uni\\iOSBinaryAnalysisLab\\lifter\\ghidra\\GhidraScripts\\output.xml";
-            } else{
-                return "/tmp/output.xml";
-            }
-        } else {
-            System.out.println("OS name is null.");
-            return "/tmp/output.xml";
-        }
-        //return "/tmp/output.xml";
     }
 }

@@ -4,8 +4,12 @@ This tool lifts a a compiled binary to LLVM.
 ###### Special thanks to the my advisor Arie Gurfinkel and the CMU Pharos team (https://github.com/cmu-sei/pharos). Tests taken from their repository.
 
 ## Required packages for Python 3
-- llvmlite
-- graphviz
+```bash
+poetry install
+poetry run python g2llvm.py /path/to/binary
+poetry run python g2llvm.py ../../../binary/BMI-Calculator
+```
+
 
 ## Installation Instructions (Linux Only)
 
@@ -43,6 +47,8 @@ Optional arguments:
 ###### TODO
 
 - Implement lifting using Ghidra's HighFunction (will eventually be the default)
+
+
 
 
 # Instructions
