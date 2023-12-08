@@ -1,0 +1,3 @@
+ghidra_dir = "/home/pascal/iOSBinaryAnalysisLab/lifter/ghidra/ghidra_10.4_PUBLIC"
+project_dir = "/home/pascal/iOSBinaryAnalysisLab/results/"
+script_dir = "/mnt/c/Users/pasca/Documents/Code/Uni/iOSBinaryAnalysisLab/lifter/ghidra/GhidraScripts"

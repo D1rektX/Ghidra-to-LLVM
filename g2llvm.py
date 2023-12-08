@@ -13,7 +13,7 @@ opt_verify = importlib.import_module('src.lifting-opt-verify')
 base_dir_win = "C:\\Users\\pasca\\Documents\\Code\\Uni\\iOSBinaryAnalysisLab\\"
 ghidra_headless_loc_win = base_dir_win + "lifter\\ghidra\\ghidra_10.4_PUBLIC\\support\\analyzeHeadless.bat"
 prj_dir_win = base_dir_win + "lifter\\ghidra"
-script_dir_win = "C:\\Users\\pasca\\Documents\\Code\\Uni\\Ghidra-to-LLVM\\src"
+script_dir_win = "C:\\Users\\pasca\\Documents\\Code\\Uni\\iOSBinaryAnalysisLab\\lifter\\ghidra\\Ghidra-to-LLVM\\src"
 xml_tmp_file_win = "C:\\Users\\pasca\\Documents\\Code\\Uni\\iOSBinaryAnalysisLab\\lifter\\ghidra\\GhidraScripts\\output.xml"
 output_dir_win = base_dir_win + "results\\"
 # linux
@@ -33,7 +33,7 @@ script_dir = script_dir_lin
 xml_tmp_file = xml_tmp_file_lin
 output_dir = output_dir_lin
 # chose if ghidra should run
-recompile = False
+recompile = True
 
 
 # These shouldn't need to be changed
