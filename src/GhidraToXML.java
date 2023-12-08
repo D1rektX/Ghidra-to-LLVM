@@ -220,6 +220,7 @@ public class GhidraToXML extends HeadlessScript {
                 for (int i = 0; i < pcode.length; i++) {
     				if (pcode[i].getOpcode() == PcodeOp.CALLOTHER) {
     					inst = replaceCallother(inst, asm, listing);
+    					pcode = inst.getPcode();
     					break;
     					// throw new Exception("ENDING THE SCRIPT.");
     				}
