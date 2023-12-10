@@ -2,12 +2,30 @@
 
 import importlib
 import argparse
+import json
+import os
+import platform
 import shutil
 import subprocess
 import sys
 
 xmltollvm = importlib.import_module('src.xmltollvm')
 opt_verify = importlib.import_module('src.lifting-opt-verify')
+
+def load_config():
+    with open('config.json', 'r') as config_file:
+        return json.load(config_file)
+
+def construct_paths(config, base_dir):
+    paths = {
+        "ghidra_dir": os.path.join(base_dir, config["directories"]["ghidra_dir"]),
+        "ghidra_headless": os.path.join(base_dir, config["directories"]["headless_dir"][platform.system().lower()]),
+        "project_dir": os.path.join(base_dir, config["directories"]["project_dir"]),
+        "script_dir": os.path.join(base_dir, config["directories"]["script_dir"][platform.system().lower()]),
+        "xml_tmp_file": os.path.join(base_dir, config["directories"]["xml_tmp_file"][platform.system().lower()]),
+        "output_dir": os.path.join(base_dir, config["directories"]["output_dir"])
+    }
+    return paths
 
 # windows
 base_dir_win = "C:\\Users\\pasca\\Documents\\Code\\Uni\\iOSBinaryAnalysisLab\\"
@@ -25,16 +43,15 @@ script_dir_lin = base_dir_lin + "lifter/ghidra/Ghidra-to-LLVM/src"
 xml_tmp_file_lin = "/tmp/output.xml"
 output_dir_lin = base_dir_lin + "results/"
 
-
 # These need to change in your local installation
-ghidra_headless_loc = ghidra_headless_loc_lin
-prj_dir = prj_dir_lin
-script_dir = script_dir_lin
-xml_tmp_file = xml_tmp_file_lin
-output_dir = output_dir_lin
+ghidra_headless_loc = ghidra_headless_loc_win
+prj_dir = prj_dir_win
+script_dir = script_dir_win
+xml_tmp_file = xml_tmp_file_win
+output_dir = output_dir_win
+
 # chose if ghidra should run
 recompile = True
-
 
 # These shouldn't need to be changed
 prj_name = "lifting"
@@ -48,6 +65,21 @@ parser.add_argument('-opt', action='store', help='select optimization level 0-3'
 parser.add_argument('-o', action='store', help='LLVM IR output path', default=None, dest='output')
 parser.add_argument('-cfg', action='store_true', help='emit cfg', default=False, dest='cfg')
 results = parser.parse_args()
+
+# Load configuration
+config = load_config()
+
+# Determine base directory based on the current OS
+current_os = platform.system().lower()
+base_dir = config["base_dir"][current_os]
+
+# Construct paths using the base directory
+paths = construct_paths(config, base_dir)
+
+# Access constructed paths
+ghidra_dir = paths["ghidra_dir"]
+project_dir = paths["project_dir"]
+script_dir = paths["script_dir"]
 
 # Check arguments
 if results.opt is not None:
