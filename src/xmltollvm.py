@@ -111,6 +111,117 @@ def build_cfg(function, ir_func):
             builders[address] = ir.IRBuilder(block)
     return builders, blocks
 
+def build_cmpxchg(builder, instruction, pcode):
+    # TODO - Implement p-code relative branching
+    print("CMPXCHG instruction!")
+    # find relative pcode
+    # get current p code index for instruction:
+    current_index = int(pcode.tag.replace("pcode_", ""))
+    # get offset value from constant
+    # offset = int(input.replace("0x", ""))
+    # Hexadecimal address offset
+    offset = int(input, 16)
+    print("offset: " + str(offset))
+    # get jump pcode index:
+    pcode_jump_index = current_index + offset
+    # get branch address from p-code at offset index
+    pcode_jump = instruction.find("pcodes")[pcode_jump_index]
+
+    # ptr ist first variable in instruction
+    # setup ptr: right now: R12 - TODO
+    # LOAD WITH 2 INPUTS - output = *[input0]input1;
+    # IF input0 exists -> load from address input0 with offset input1
+    load_pcode = instruction.find("pcodes")[0]
+    ptr = load_pcode.find("input_1")
+    # load_pcode.find("input_1").text = R12
+    # load_pcode.find("input_1").get("storage") = register
+    input_1 = load_pcode.find("input_1")
+    # fetch_input_varnode(builder, input1)
+    # return builder.load(registers[name.text])
+    # ABER ICH WILL registers[input0 + input1]
+    # > registers[0x1b1 + *R12]
+    # INHALT von R12: %".19008" = load i64, i64* @"R12"
+    # load value from register -> offset
+    # load from memory address[input0 + offset]
+    # registers[instruction.find("pcodes")[0].find("input_1").text]
+
+    # setup val:
+    # find cbranch pcode: pcode_jump
+    # this should be COPY
+    # find input0
+    # this is val
+    val = pcode_jump.find("input0")
+
+    # setup cmp:
+    cmp = "TODO"
+    # find comparison operation that has output ZF
+    # last operation that sets up ZF bevor CBRANCH will have the comparison
+    # pcode 4
+
+    # Use pcode implementation to run needed pcodes through existing code
+    # pcode4 is compare operation
+    # pcode 1 loads pointer value
+    # TODO
+
+    # TODO WHAT IS ORDERING
+    # Ordering is optional
+    # https://llvmlite.readthedocs.io/en/latest/user-guide/ir/ir-builder.html
+    # TODO - FINAL VALUES
+    ##############################################
+
+    pcode = instruction.find("pcodes")[0]
+    # todo - R12 + offset not just R12
+    ptr = pcode.find("input_1") # this is ptr R12
+
+    pcode = instruction.find("pcodes")[14]
+    val = pcode.find("input_0")
+    ##############################################
+    # COMPARISON: x = *ptr[R12+offset]
+    # a = RAX < x
+    #
+    # Go through pcodes:
+
+    # LOAD 0x1b1, R12 - u_5500:8
+    pcode = instruction.find("pcodes")[0]
+    input_1 = pcode.find("input_1") # THIS IS R12
+    output = pcode.find("output")
+    load_ptr = fetch_input_varnode(builder, input_1)
+    if input_1.get("storage") == "register":
+        if input_1.text in pointers:
+            # Don't load from the register, but load from the value
+            # contained in the register
+            load_ptr = builder.gep(load_ptr, [ir.Constant(int64, 0)])
+
+        if not load_ptr.type.is_pointer:
+            # LLVM doesn't know this is a pointer yet...
+            # Make it point to the output type
+            output_size = 8 * int(output.get("size"))
+            load_ptr = builder.inttoptr(load_ptr, ir.PointerType(ir.IntType(output_size)))
+
+        result = builder.load(load_ptr) # value of ptr[R12] -> value of old
+        update_output(builder, output, result)
+    else:
+        raise NotImplementedError(
+            f"INCORRECT LOAD IN CMPXCHG Instruction: {et.tostring(pcode)}")
+    # COPY u_5500:8 - u_ca400:8
+    # INT_LESS RAX, u_ca400:8 - CF
+    # INT_SBORROW RAX, u_ca400:8 - OF
+    # INT_SUB RAX, u_ca400:8 - u_ca500:8
+    # INT_SLESS u_ca500:8, 0x0 - SF
+    # INT_EQUAL u_ca500:8, 0x0 - ZF
+    # INT_AND u_ca500:8, 0xff - u_13400:8
+    # POPCOUNT u_13400:8 - u_13480:1
+    # INT_AND u_13480:1, 0x1 - u_13500:1
+    # INT_EQUAL u_13500:1, 0x0 - PF
+    # CBRANCH 0x3, ZF -
+    # COPY u_ca400:8 - RAX
+    # BRANCH 0x3 -
+    # COPY RDI - u_5500:8
+    # STORE 0x1b1, R12, u_5500:8 -
+
+
+
+    return ptr, val, cmp
 
 # noinspection DuplicatedCode
 def populate_cfg(function, builders, blocks):
@@ -133,26 +244,51 @@ def populate_cfg(function, builders, blocks):
         if skip:
             continue
 
+        # check for CMPXCHG instruction
+        for pcode in instruction.find("pcodes"):
+            mnemonic = pcode.find("name")
+            if mnemonic.text == "CBRANCH":
+                break
+                if pcode.find("input_0").get("storage") == "constant":
+                    ptr, cmp, val = build_cmpxchg(builder,
+                                                            instruction,
+                                                            pcode)
+                    builder.cmpxchg(ptr, cmp, val)
+                    # LLLVM SIMILAR INSTRUCTION:
+                    # https://en.cppreference.com/w/cpp/atomic/atomic/compare_exchange
+
+        #
+
         address = instruction.find("address").text
         builder = builders.get(address, builder)
 
         no_branch = True
 
+
         for pcode in instruction.find("pcodes"):
             mnemonic = pcode.find("name")
+
             try:
                 if mnemonic.text == "COPY":
                     source = fetch_input_varnode(builder, pcode.find("input_0"))
                     update_output(builder, pcode.find("output"), source)
 
                 elif mnemonic.text == "CALLOTHER":
-                    print("NON IMPLEMENTED PCODE CALLOTHER SKIPPED")
-                    continue
+                    raise NotImplementedError(f"CALLOVER pcode at {address} needs to be implemented.")
                 elif mnemonic.text == "LOAD":
                     input_1 = pcode.find("input_1")
                     output = pcode.find("output")
-                    load_ptr = fetch_input_varnode(builder, input_1)
 
+                    # TODO - implement input_0
+                    input_0 = pcode.find("input_0")
+
+                    load_ptr = fetch_input_varnode(builder, input_1)
+                    if input_0 != None:
+                        # TODO
+                        pass
+                        print("UNIMPLEMENTED LOAD: " + address + " - " + str(pcode))
+                        # load_ptr = fetch_input_varnode(builder, input_0)
+                        # load_ptr = builder.gep(load_ptr, [ir.Constant(int64, input_1)])
                     if input_1.get("storage") == "unique" and output.get("storage") == "unique":
                         # This is incorrect. This is treating it as a copy, should load the memory address in the input 1
                         update_output(builder, output, load_ptr)
@@ -224,31 +360,44 @@ def populate_cfg(function, builders, blocks):
 
                     input = pcode.find("input_0").text
                     if pcode.find("input_0").get("storage") == "constant":
-                       # "0x3"
-                        print("p-code relative branching")
-                        # TODO - Implement p-code relative branching
-                        # get current p code index for instruction:
+                        # new approach -> start counter with offset
                         current_index = int(pcode.tag.replace("pcode_", ""))
-                        # get offset value from constant
-                        # offset = int(input.replace("0x", ""))
-                        # Hexadecimal address offset
-                        offset = int(input, 16)
-                        print("offset: " + str(offset))
-                        # get jump pcode index:
-                        pcode_jump_index = current_index + offset
-                        # get branch address from p-code at offset index
-                        pcode_jump = instruction.find("pcodes")[pcode_jump_index]
+                        relative_offset = int(input, 16)
+                        target_index = current_index + relative_offset
+                        # Check if within valid range
+                        pcodes = instruction.find("pcodes")
+                        if 0 <= target_index < len(pcodes):
+                            true_target = pcodes[target_index]  # Retrieve the target pcode
+                        else:
+                            raise NotImplementedError("Negative relative p-code address not allowed.")
+                        # continue
+                        # # "0x3"
+                        # print("p-code relative branching")
+                        # # TODO - Implement p-code relative branching
+                        # # get current p code index for instruction:
+                        # current_index = int(pcode.tag.replace("pcode_", ""))
+                        # # get offset value from constant
+                        # # offset = int(input.replace("0x", ""))
+                        # # Hexadecimal address offset
+                        # offset = int(input, 16)
+                        # print("offset: " + str(offset))
+                        # # get jump pcode index:
+                        # pcode_jump_index = current_index + offset
+                        # # get branch address from p-code at offset index
+                        # pcode_jump = instruction.find("pcodes")[pcode_jump_index]
 
                         # HOW TO GET P CODE SPECIFIC ADDRESS?
-                        builder.cmpxchg()
+                        # builder.cmpxchg()
                         # LLLVM SIMILAR INSTRUCTION:
                         # https://en.cppreference.com/w/cpp/atomic/atomic/compare_exchange
 
-                        raise NotImplementedError("P-code relative branching has not been implemented!")
-                    if len(input) >= 5:
-                        true_target = blocks[input[2:-2]]
+                        # raise NotImplementedError("P-code relative branching has not been implemented!")
                     else:
-                        true_target = blocks[input[2:]]
+                        if len(input) >= 5:#todo
+                            true_target = blocks[input[2:-2]]
+                        else:
+                            print("Cbranch target address to short!")
+                            true_target = blocks[input[2:]]
                     false_target = list(blocks.values())[block_iterator]
                     condition = fetch_input_varnode(builder, pcode.find("input_1"))
                     no_branch = False
@@ -599,6 +748,7 @@ def populate_cfg(function, builders, blocks):
                 print("ERROR: Not implemented instruction: " + mnemonic.text + " at: " + address)
 
             except Exception as ex:
+                raise ex
                 errorType = str(type(ex)).replace("<class '", "").replace("'>", "")
                 print(errorType + " at address: " + address)
                 print(str(ex))
