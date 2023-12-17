@@ -1,64 +1,89 @@
 #!/usr/bin/python3
 
-import importlib
 import argparse
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
 
-xmltollvm = importlib.import_module('src.xmltollvm')
-opt_verify = importlib.import_module('src.lifting-opt-verify')
+import src.xmltollvm as xmltollvm
+import src.lifting_opt_verify as opt_verify
+
 
 def load_config():
     with open('config.json', 'r') as config_file:
         return json.load(config_file)
 
+
 def construct_paths(config, base_dir):
     paths = {
         "ghidra_dir": os.path.join(base_dir, config["directories"]["ghidra_dir"]),
-        "ghidra_headless": os.path.join(base_dir, config["directories"]["ghidra_dir"], config["directories"]["headless_dir"][platform.system().lower()]),
         "project_dir": os.path.join(base_dir, config["directories"]["project_dir"]),
         "script_dir": os.path.join(base_dir, config["directories"]["script_dir"][platform.system().lower()]),
         "xml_tmp_file": os.path.join(base_dir, config["directories"]["xml_tmp_file"][platform.system().lower()]),
         "output_dir": os.path.join(base_dir, config["directories"]["output_dir"])
     }
+    paths["ghidra_headless"] = os.path.join(
+        paths["ghidra_dir"] + config["directories"]["headless_dir"][platform.system().lower()])
+    for key, path in paths.items():
+        assert os.path.isdir(path) or os.path.isfile(path), f"Invalid path: {key} = '{path}'"
     return paths
 
-# windows
-base_dir_win = "C:\\Users\\pasca\\Documents\\Code\\Uni\\iOSBinaryAnalysisLab\\"
-ghidra_headless_loc_win = base_dir_win + "lifter\\ghidra\\ghidra_10.4_PUBLIC\\support\\analyzeHeadless.bat"
-prj_dir_win = base_dir_win + "lifter\\ghidra"
-script_dir_win = "C:\\Users\\pasca\\Documents\\Code\\Uni\\iOSBinaryAnalysisLab\\lifter\\ghidra\\Ghidra-to-LLVM\\src"
-xml_tmp_file_win = "C:\\Users\\pasca\\Documents\\Code\\Uni\\iOSBinaryAnalysisLab\\lifter\\ghidra\\GhidraScripts\\output.xml"
-output_dir_win = base_dir_win + "results\\"
-# linux
 
-base_dir_lin = "/home/pascal/Documents/Uni/iOSBinaryAnalysisLab/"
-ghidra_headless_loc_lin = base_dir_lin + "lifter/ghidra/ghidra_10.4_PUBLIC/support/analyzeHeadless"
-prj_dir_lin = base_dir_lin + "lifter/ghidra"
-script_dir_lin = base_dir_lin + "lifter/ghidra/Ghidra-to-LLVM/src"
-xml_tmp_file_lin = "/tmp/output.xml"
-output_dir_lin = base_dir_lin + "results/"
+def check_previous_line_is_correctly_ended(previous_line):
+    return previous_line and any(previous_line.strip().startswith(s) for s in valid_endings)
 
-# These need to change in your local installation
-ghidra_headless_loc = ghidra_headless_loc_win
-prj_dir = prj_dir_win
-script_dir = script_dir_win
-xml_tmp_file = xml_tmp_file_win
-output_dir = output_dir_win
 
-# chose if ghidra should run
+def fix_wrong_block_endings(file_path):
+
+    regex = r'"([0-9a-fA-F]{9})":\n'
+    pattern = re.compile(regex)
+    with open(file_path, 'r') as file:
+        previous_line = None
+        lines = file.readlines()
+        n = 0
+        skipInserterLine = False
+        for i, line in enumerate(lines):
+            if skipInserterLine:
+                skipInserterLine = False
+                continue
+            if pattern.match(line):
+                check_previous_line_is_correctly_ended(previous_line)
+                if not check_previous_line_is_correctly_ended(previous_line):
+                    # adjust i with inserted lines
+                    i = i - n
+                    insert_text = re.match(regex, line).group(1)
+                    # check if spaces need to be inserted dynamically according to previous line
+                    insert_text = f"  br label %\"{insert_text}\"\n"
+                    print(f"{i}: {previous_line}")
+                    print(f"{i + 1}: {line}")
+                    lines.insert(i + n, insert_text)
+                    skipInserterLine = True
+                    n = n + 1
+                    # return True  # Found the pattern
+            previous_line = line.rstrip('\n')  # Update the previous line
+        # Write modified lines back to the file
+        with open("new_" + file_path, 'w') as file:
+            file.writelines(lines)
+
+
+# choose if ghidra should run
+# if not the resulting file is needed!
 recompile = True
+# choose if incorrect line endings in the llvmlite file should be fixed
+should_fix_wrong_block_endings = True
+# list of valid commands that can occur bevor a new label address
+valid_endings = ["br ", "ret ", "indirectbr"]
 
 # These shouldn't need to be changed
 prj_name = "lifting"
 xml_script = "GhidraToXML.java"
 
 # Argument parsing
-parser = argparse.ArgumentParser(description = 'This script lifts a binary from executable to LLVM IR.')
+parser = argparse.ArgumentParser(description='This script lifts a binary from executable to LLVM IR.')
 parser.add_argument('input_file', action='store')
 parser.add_argument('-out', action='store_true', help='emit intermediate files', default=False, dest='out')
 parser.add_argument('-opt', action='store', help='select optimization level 0-3', default=None, dest='opt')
@@ -78,7 +103,7 @@ paths = construct_paths(config, base_dir)
 
 # Access constructed paths
 ghidra_dir = paths["ghidra_dir"]
-ghidra_headless_loc = ghidra_dir +  paths['ghidra_headless']
+ghidra_headless_loc = paths['ghidra_headless']
 project_dir = paths["project_dir"]
 script_dir = paths["script_dir"]
 output_dir = paths['output_dir']
@@ -93,7 +118,10 @@ else:
     opt_level = results.opt
 
 # Convert P-code to XML
-# Convert P-code to XML
+
+print("-----------------------------------------------------")
+print("Running Ghidra analysis and post script(s)")
+print("-----------------------------------------------------")
 if recompile:
     subprocess.run([
         ghidra_headless_loc,  # Path to the Ghidra analyzeHeadless executable
@@ -125,9 +153,7 @@ shutil.copyfile(xml_tmp_file, xmlfile)
 # shutil.move(xml_tmp_file, xmlfile)
 
 print("-----------------------------------------------------")
-
-print("-----------------------------------------------------")
-print("-----------------------------------------------------")
+print("Finished Ghidra-To-Xml conversion")
 print("-----------------------------------------------------")
 # Lift to LLVM
 module = xmltollvm.lift(xmlfile)
@@ -136,9 +162,27 @@ f = open(llvmlitefile, 'w')
 f.write(str(module))
 f.close()
 
+print("-----------------------------------------------------")
+print("Finished lifting to llvm")
+print("-----------------------------------------------------")
 # Optimization passes
+# TODO - find incorrect labels and correct them
+# TODO - WHERE DO THEY COME FROM?
+if should_fix_wrong_block_endings:
+    print("-----------------------------------------------------")
+    print("Finished lines: ")
+    fix_wrong_block_endings(llvmlitefile)
+    print("-----------------------------------------------------")
+    print("Finished fixing incorrect block endings")
+    print("-----------------------------------------------------")
+    f = open("new_" + llvmlitefile, 'r')
+    module = f.read()
+
 module = opt_verify.optimize(module, opt_level)
 
+print("-----------------------------------------------------")
+print("Finished optimizations")
+print("-----------------------------------------------------")
 # Verify
 module = opt_verify.verify(module)
 llfile = str(filename + '.ll')
@@ -150,14 +194,19 @@ f = open(llfile, 'w')
 f.write(str(module))
 f.close()
 
+print("-----------------------------------------------------")
+print("Finished verification")
+print("-----------------------------------------------------")
+
 # Output CFGs
 if results.cfg:
     subprocess.run(['rm', '-rf', "graphs"])
     subprocess.run(['mkdir', "graphs"])
     graphs = opt_verify.graph(module)
 
-
 # Cleanup
 if not results.out:
-    subprocess.run(['rm', xmlfile])
-    subprocess.run(['rm', llvmlitefile])
+    os.remove(xmlfile)
+    if should_fix_wrong_block_endings:
+        os.remove("new_" + llvmlitefile)
+    os.remove(llvmlitefile)
