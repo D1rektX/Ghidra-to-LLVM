@@ -234,40 +234,38 @@ def populate_cfg(function, builders, blocks):
     builder.store(stack_top, registers["RSP"])
     builder.branch(list(blocks.values())[1])
 
+
     for block_iterator, instruction in enumerate(function.find("instructions"), start=2):
 
-        skip = False
-        for pcode in instruction.find("pcodes"):
-            mnemonic = pcode.find("name")
-            if mnemonic.text == "CALLOTHER":
-                skip = True
-        if skip:
-            continue
-
-        # check for CMPXCHG instruction
-        for pcode in instruction.find("pcodes"):
-            mnemonic = pcode.find("name")
-            if mnemonic.text == "CBRANCH":
-                break
-                if pcode.find("input_0").get("storage") == "constant":
-                    ptr, cmp, val = build_cmpxchg(builder,
-                                                            instruction,
-                                                            pcode)
-                    builder.cmpxchg(ptr, cmp, val)
-                    # LLLVM SIMILAR INSTRUCTION:
-                    # https://en.cppreference.com/w/cpp/atomic/atomic/compare_exchange
-
-        #
 
         address = instruction.find("address").text
         builder = builders.get(address, builder)
 
+        relative_branch = {}
         no_branch = True
 
+        relative_branch_index = 0
+        close_branch = False
 
         for pcode in instruction.find("pcodes"):
             mnemonic = pcode.find("name")
 
+            if relative_branch_index > 0:
+                relative_branch_index = relative_branch_index - 1
+                if relative_branch_index == 0:
+                    close_branch = True
+                    print("found instruction to jump to.")
+                    # todo - check instruction still in same block!
+                    relative_branch['instruction_count'] = len(list(blocks.values())[block_iterator - 1].instructions)
+
+                else:
+                    print("Calculating relative branching address. Index at: " + str(relative_branch_index) + " - " + mnemonic.text)
+            # Block iterator 2128 -> BRANCH RELATIVE - address: 10000543c
+            # list(blocks.values())[2128 - 1]
+            # see instructions
+            # list(blocks.values())[2128 - 1].instructions
+            # find instruction for branch offset pcode
+            # 30 instructions in current block
             try:
                 if mnemonic.text == "COPY":
                     source = fetch_input_varnode(builder, pcode.find("input_0"))
@@ -357,7 +355,8 @@ def populate_cfg(function, builders, blocks):
                     # pcode operation with index 5 for the instruction, it can branch to operation
                     # with index 8 by specifying a constant destination “address” of 3.
                     # Negative constants can be used for backward branches.
-
+                    if relative_branch_index > 0:
+                        print("Error relative cbranch not yet evaluated")
                     input = pcode.find("input_0").text
                     if pcode.find("input_0").get("storage") == "constant":
                         # new approach -> start counter with offset
@@ -367,7 +366,10 @@ def populate_cfg(function, builders, blocks):
                         # Check if within valid range
                         pcodes = instruction.find("pcodes")
                         if 0 <= target_index < len(pcodes):
-                            true_target = pcodes[target_index]  # Retrieve the target pcode
+                            # true_target = pcodes[target_index]  # Retrieve the target pcode
+                            relative_branch_index = relative_offset
+                            # relative_branch['block_iterator'] = block_iterator
+                            print(f"CBRANCH RELATIVE at address {address}")
                         else:
                             raise NotImplementedError("Negative relative p-code address not allowed.")
                         # continue
@@ -404,7 +406,12 @@ def populate_cfg(function, builders, blocks):
                     # Ensure the condition is 1 bit wide
                     if isinstance(condition.type, ir.IntType) and condition.type.width == 8:  # truncate bools
                         condition = builder.trunc(condition, ir.IntType(1))
-                    builder.cbranch(condition, true_target, false_target)
+
+                    if relative_branch_index > 0:
+                        relative_branch['false_target'] = false_target
+                        relative_branch['condition'] = condition
+                    else:
+                        builder.cbranch(condition, true_target, false_target)
 
                 elif mnemonic.text == "BRANCHIND":
                     no_branch = False
@@ -752,6 +759,12 @@ def populate_cfg(function, builders, blocks):
                 errorType = str(type(ex)).replace("<class '", "").replace("'>", "")
                 print(errorType + " at address: " + address)
                 print(str(ex))
+
+            # todo
+            if close_branch:
+                true_target = list(blocks.values())[block_iterator - 1].instructions[relative_branch['instruction_count']]
+                builder.cbranch(relative_branch['condition'], true_target, relative_branch['false_target'])
+                close_branch = False
 
         if block_iterator < len(blocks) and no_branch:
             builder.branch(list(blocks.values())[block_iterator])

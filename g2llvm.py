@@ -19,7 +19,7 @@ def load_config():
 def construct_paths(config, base_dir):
     paths = {
         "ghidra_dir": os.path.join(base_dir, config["directories"]["ghidra_dir"]),
-        "ghidra_headless": os.path.join(base_dir, config["directories"]["headless_dir"][platform.system().lower()]),
+        "ghidra_headless": os.path.join(base_dir, config["directories"]["ghidra_dir"], config["directories"]["headless_dir"][platform.system().lower()]),
         "project_dir": os.path.join(base_dir, config["directories"]["project_dir"]),
         "script_dir": os.path.join(base_dir, config["directories"]["script_dir"][platform.system().lower()]),
         "xml_tmp_file": os.path.join(base_dir, config["directories"]["xml_tmp_file"][platform.system().lower()]),
@@ -78,8 +78,11 @@ paths = construct_paths(config, base_dir)
 
 # Access constructed paths
 ghidra_dir = paths["ghidra_dir"]
+ghidra_headless_loc = ghidra_dir +  paths['ghidra_headless']
 project_dir = paths["project_dir"]
 script_dir = paths["script_dir"]
+output_dir = paths['output_dir']
+xml_tmp_file = paths['xml_tmp_file']
 
 # Check arguments
 if results.opt is not None:
@@ -94,7 +97,7 @@ else:
 if recompile:
     subprocess.run([
         ghidra_headless_loc,  # Path to the Ghidra analyzeHeadless executable
-        prj_dir,  # Path to the Ghidra project directory
+        project_dir,  # Path to the Ghidra project directory
         prj_name,  # Ghidra project name
         '-import',  # Import command to specify that you want to import a binary
         results.input_file,  # Path to the input binary file to be imported

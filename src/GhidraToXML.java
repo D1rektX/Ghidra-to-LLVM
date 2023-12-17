@@ -107,9 +107,13 @@ public class GhidraToXML extends HeadlessScript {
     	log(instruction.getMnemonicString());
     	log("Address: " + instruction.getAddress());
 
-        log("New instruction: " + instruction.toString().replace(".LOCK", ""));
 
-		asm.assemble(instruction.getAddress(), instruction.toString().replace(".LOCK", ""));
+		if(instruction.toString().contains("CMPXCHG.LOCK"){
+		    asm.assemble(instruction.getAddress(), "NOP");
+        } else{
+		    asm.assemble(instruction.getAddress(), instruction.toString().replace(".LOCK", ""));
+        }
+        log("New instruction: " + listing.getInstructionAt(instruction.getAddress()).toString());
     	log("----------------------------------------------------------------");
 		return listing.getInstructionAt(instruction.getAddress());
     }
