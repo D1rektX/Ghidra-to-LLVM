@@ -30,6 +30,7 @@ def construct_paths(config, base_dir):
     paths["ghidra_headless"] = os.path.join(
         paths["ghidra_dir"] + config["directories"]["headless_dir"][platform.system().lower()])
     for key, path in paths.items():
+
         if key == "xml_tmp_file" and recompile:
             continue
         assert os.path.isdir(path) or os.path.isfile(path), f"Invalid path: {key} = '{path}'"
@@ -122,6 +123,12 @@ else:
 
 # Convert P-code to XML
 
+if recompile and os.path.isdir(xml_tmp_file):
+    print("-----------------------------------------------------")
+    print("Cleaning up old results")
+    print("-----------------------------------------------------")
+    os.remove(xml_tmp_file)
+
 print("-----------------------------------------------------")
 print("Running Ghidra analysis and post script(s)")
 print("-----------------------------------------------------")
@@ -152,7 +159,11 @@ filename = results.input_file.split(seperator)[-1]
 xmlfile = output_dir + filename + '.xml'
 # subprocess.run(['mv', xml_tmp_file, xmlfile])
 # Copy the file
-shutil.copyfile(xml_tmp_file, xmlfile)
+try:
+    shutil.copyfile(xml_tmp_file, xmlfile)
+except Exception:
+    print("Error: no xml output found! Exiting.. ")
+    exit(1)
 # shutil.move(xml_tmp_file, xmlfile)
 
 print("-----------------------------------------------------")
@@ -192,7 +203,7 @@ llfile = str(filename + '.ll')
 if results.output:
     llfile = results.output
 else:
-    llfile = str(filename + '.ll')
+    llfile = paths["output_dir"] + str(filename + '.ll')
 f = open(llfile, 'w')
 f.write(str(module))
 f.close()

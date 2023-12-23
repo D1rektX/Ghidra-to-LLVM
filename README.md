@@ -1,16 +1,28 @@
 # Ghidra-to-LLVM
-This tool lifts a a compiled binary to LLVM.
+This program lifts a compiled binary via Ghidra PCODE to LLVM IR. This fork of
+[the original Ghidra-to-LLVM project](https://github.com/toor-de-force/Ghidra-to-LLVM)
+intends to complete the missing PCODE operations, add support for the PCODE used
+in the latest Ghidra version, add more tests for complex programs and functions,
+and add complete support for architectures other than `x86_64`.
 
-###### Special thanks to the my advisor Arie Gurfinkel and the CMU Pharos team (https://github.com/cmu-sei/pharos). Tests taken from their repository.
+## Acknowledgements
+A large number of the tests currently included with this repository were created
+as part of the [Pharos framework](https://github.com/cmu-sei/pharos), developed by [Carnegie Mellon University's Software Engineering Institute](https://www.sei.cmu.edu/).
 
-## Required packages for Python 3
+## Setup
+This is a Python 3 program, and it also requires `make` to be installed to
+compile the tests. If you just want to run the program and don't care about the
+tests, you only need Python 3 and the modules `llvmlite` and `tomli` (and
+`graphviz` to render control flow graphs).
+
+### Required packages for Python 3
 ```shell
 poetry install
 poetry run python g2llvm.py /path/to/binary
 poetry run python g2llvm.py ../../../binary/BMI-Calculator
 ```
-### Mac Os
-poetry might not be able to install llvm giving the following error when attempting an install:
+#### Mac Os
+poetry might not be able to install llvm giving the following error when attempting an installation:
 
 ```shell
 • Installing llvmlite (0.41.1): Failed
@@ -48,11 +60,9 @@ https://github.com/NationalSecurityAgency/ghidra/releases
 - Save file
 - Restart any open terminal windows for changes to take effect
   
-### 2. Edit g2llvm.py
+### 2. Edit config.json
 
-The script requires you to provide the location of two files (absolute path):
-- ghidra_headless_loc = "/PATH/TO/ghidra_9.1.1_PUBLIC/support/analyzeHeadless"
-- prj_dir = "/PATH/TO/GhidraProjects/"
+Fill out the config.json file with the corresponding paths.
 
 ## Usage
 To run the the tool, simply run the g2llvm.py script. It takes a single mandatory argument, the target executable.
@@ -63,25 +73,96 @@ Optional arguments:
 - '-opt X' attempts to optimize the file. Valid options 0-3. (Currently only 0 works)
 - '-cfg' saves a .PNG of the whole module CFG.
 
+The full usage can be found in the help message below, which is also available
+through `python3 g2llvm.py --help`.
 
-###### Extra Scripts
+```
+python3 g2llvm.py [-h] [-out] [-opt OPT] [-cfg] input_file
 
-- HighFunction_Analysis.java: Prints readable version of high function representation
-- HighFunction2LLVM.java: Makes an XML file if the high function representation
+positional arguments:
+  input_file  the path of the binary file
 
-###### TODO
+options:
+  -h, --help  show this help message and exit
+  -out        emit intermediate files
+  -opt OPT    select optimization level 0-3, default 0 (only 0 works)
+  -cfg        if set, also creates a PNG of the CFG of all functions in the
+              binary in the "graphs" folder
+```
+
+### Tests
+
+
+If you want to run the tests, make sure you have `make` installed and the
+version of `make` you're using supports the `-C` argument to run make from a
+different folder. Then, run `python3 src/run_tests.py`.
+
+```
+usage: run_tests.py [-h] [--graph] [--clean] [--refresh] [--only TEST_OBJS]
+
+Run tests for the Ghidra-To-LLVM project.
+
+options:
+  -h, --help        show this help message and exit
+  --graph           Render all CFGs
+  --clean           Completely rerun all tests
+  --refresh         Rerun Ghidra analysis for all tests
+  --only TEST_OBJS  Only run specified tests. If a path to a folder is specified, runs all tests in that folder.
+```
+
+Intermediate files will be created in subfolders of `tests`:
+- `tests/graphs` will contain PNG renders of the control flow graph of all
+  functions in all tests if the `--graph` argument is given.
+- `tests/llvm` will contain a file containing the LLVM IR of a test program for
+  each test.
+- `tests/obj` will contain the compiled object files.
+- `tests/xml` will contain the `.xml` files produced by the custom Ghidra script,
+  containing the PCODE and some metadata about the program.
+
+If you want to completely rerun all tests, you should provide the `--clean`
+argument. If you want to rerun only the Ghidra analysis and PCODE translation,
+you should provide the `--refresh` argument. Note that `--clean` implies `--refresh`.
+If you want to only rerun the PCODE translation, no arguments need to be given.
+If you just want to test a specific object file, you can specify that file using
+the `--only` flag.
+
+
+## Workings
+This script works by loading the provided binary in Ghidra's headless analyzer
+and running the automatic analysis to discover all functions. Then, it goes
+through all recovered functions one-by-one, decompiles them and reads the
+resulting "high" PCODE. This PCODE is then, along with some metadata about the
+registers and memory locations that are used, saved to an `.xml` file.
+
+The script then reads this `.xml` file, iterates through the functions and
+translates every PCODE operation into one or multiple LLVM IR instructions and
+combines them to create an LLVM module. Next, this module is optimised using
+LLVM's optimisations and according to the provided optimisation level. Finally,
+the optimised module is written to a `.ll` file, and the unoptimised module is
+written to a `.llvmlite` file. Optionally, the control flow graphs of the
+optimised module can be rendered as `.png` files and saved to the `graphs`
+folder.
+
+## Extra Scripts
+
+There are some extra scripts located in the `src` folder.
+
+- `GhidraToXML.java`: converts a binary through ghidra into XML
+- `FindWarnings.java`: finds warnings that are in the ghidra listing and prints out an inspection of the code.
+
+There are some extra scripts located in the `extra_scripts` folder.
+
+- `HighFunction_Analysis.java`: Prints a readable version of the high function
+  representation.
+- `HighFunction2LLVM.java`: Makes an XML file of the the high function
+  representation of all functions in a program. This might be a potential earlier
+  version of the `src/GhidraToXML.java` file.
+
+## TODO
 
 - Implement lifting using Ghidra's HighFunction (will eventually be the default)
 
 
-
-
-# Instructions
-
-## POPCOUNT
-XML:<name>POPCOUNT</name><input_0 size="8" storage="unique">u_13400:8</input_0></pcode_6><pcode_7><output size="1" storage="unique">u_13500:1</output> 
-
-INPUT: %"36" = and i64 %"35
 
 
 
