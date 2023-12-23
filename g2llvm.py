@@ -19,6 +19,7 @@ def load_config():
 
 
 def construct_paths(config, base_dir):
+    print("constructing paths: " + base_dir)
     paths = {
         "ghidra_dir": os.path.join(base_dir, config["directories"]["ghidra_dir"]),
         "project_dir": os.path.join(base_dir, config["directories"]["project_dir"]),
@@ -29,6 +30,8 @@ def construct_paths(config, base_dir):
     paths["ghidra_headless"] = os.path.join(
         paths["ghidra_dir"] + config["directories"]["headless_dir"][platform.system().lower()])
     for key, path in paths.items():
+        if key == "xml_tmp_file" and recompile:
+            continue
         assert os.path.isdir(path) or os.path.isfile(path), f"Invalid path: {key} = '{path}'"
     return paths
 

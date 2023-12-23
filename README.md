@@ -4,18 +4,43 @@ This tool lifts a a compiled binary to LLVM.
 ###### Special thanks to the my advisor Arie Gurfinkel and the CMU Pharos team (https://github.com/cmu-sei/pharos). Tests taken from their repository.
 
 ## Required packages for Python 3
-```bash
+```shell
 poetry install
 poetry run python g2llvm.py /path/to/binary
 poetry run python g2llvm.py ../../../binary/BMI-Calculator
 ```
+### Mac Os
+poetry might not be able to install llvm giving the following error when attempting an install:
 
+```shell
+• Installing llvmlite (0.41.1): Failed
+
+  ChefBuildError
+
+  Backend subprocess exited when trying to invoke build_wheel
+  
+  running bdist_wheel
+  /private/var/folders/1z/lb5ryz0j0918kcvtjhc1_krc0000gn/T/tmp2ilxjqd0/.venv/bin/python /private/var/folders/1z/lb5ryz0j0918kcvtjhc1_krc0000gn/T/tmput0ao1q5/llvmlite-0.41.1/ffi/build.py
+  LLVM version... Traceback (most recent call last):
+...
+Note: This error originates from the build backend, and is likely not a problem with poetry but with llvmlite (0.41.1) not supporting PEP 517 builds. You can verify this by running 'pip wheel --no-cache-dir --use-pep517 "llvmlite (==0.41.1)"'.
+```
+
+In this case simply use pip to install the dependencies and run via python
+
+```bash
+# install dependencies
+pip3 install graphviz llvmlite tomli
+
+# run lifter
+python g2llvm.py ../../../binary/BMI-Calculator
+```
 
 ## Installation Instructions (Linux Only)
 
 ### 1. Install Ghidra
 
-https://ghidra-sre.org/ghidra_9.1.1_PUBLIC_20191218.zip
+https://github.com/NationalSecurityAgency/ghidra/releases
 
 - Extract the JDK: tar xvf <JDK distribution .tar.gz>
 - Open ~/.bashrc with an editor of your choice. For example:vi ~/.bashrc
