@@ -496,7 +496,10 @@ def populate_cfg(function, builders, blocks):
                     rhs = fetch_input_varnode(builder, pcode.find("input_0"))
                     if rhs.type.is_pointer:
                         rhs = builder.ptrtoint(rhs, rhs.type.pointee)
-                    output = builder.zext(rhs, ir.IntType(int(pcode.find("output").get("size")) * 8))
+                    if rhs.type.width < int(pcode.find("output").get("size")) * 8:
+                        output = builder.zext(rhs, ir.IntType(int(pcode.find("output").get("size")) * 8))
+                    else:
+                        output = builder.trunc(rhs, ir.IntType(int(pcode.find("output").get("size")) * 8))
                     update_output(builder, pcode.find("output"), output)
 
                 elif mnemonic.text == "INT_SEXT":
@@ -530,6 +533,9 @@ def populate_cfg(function, builders, blocks):
                         result = builder.gep(lhs, [ir.Constant(int64, -int(input_1.text, 16))])
                     else:
                         lhs, rhs = int_check_inputs(builder, lhs, rhs, target)
+                        if rhs.type.width < lhs.type.width:
+                            # Extend rhs to the size of lhs
+                            rhs = builder.zext(rhs, lhs.type)
                         result = builder.sub(lhs, rhs)
 
                     update_output(builder, pcode.find("output"), result)
@@ -554,7 +560,12 @@ def populate_cfg(function, builders, blocks):
                     lhs = fetch_input_varnode(builder, pcode.find("input_0"))
                     rhs = fetch_input_varnode(builder, pcode.find("input_1"))
                     lhs, rhs = int_comparison_check_inputs(builder, lhs, rhs)
-                    result = builder.sadd_with_overflow(lhs, rhs)
+                    try:
+                        result = builder.sadd_with_overflow(lhs, rhs)
+                    except:
+                        lhs, rhs = extend_operands(builder, lhs, rhs, pcode.find("input_0"), pcode.find("input_1"))
+                        result = builder.sadd_with_overflow(lhs, rhs)
+
                     result = builder.extract_value(result, 1)
                     update_output(builder, pcode.find("output"), result)
 
@@ -581,7 +592,11 @@ def populate_cfg(function, builders, blocks):
                     rhs = fetch_input_varnode(builder, pcode.find("input_1"))
                     target = ir.IntType(int(pcode.find("output").get("size")) * 8)
                     lhs, rhs = int_check_inputs(builder, lhs, rhs, target)
-                    output = builder.and_(lhs, rhs)
+                    try:
+                        output = builder.and_(lhs, rhs)
+                    except:
+                        lhs, rhs = extend_operands(builder, lhs, rhs, pcode.find("input_0"), pcode.find("input_1"))
+                        output = builder.and_(lhs, rhs)
                     update_output(builder, pcode.find("output"), output)
 
                 elif mnemonic.text == "INT_OR":
@@ -734,6 +749,8 @@ def populate_cfg(function, builders, blocks):
                     result = builder.ctlz(src, FALSE)
 
                     if out_width > src.type.width:
+                        if result.type.width > out_width:
+                            print("extend to smaller size value")
                         result = builder.zext(result, ir.IntType(out_width))
                     elif out_width < src.type.width:
                         result = builder.trunc(result, ir.IntType(out_width))
@@ -753,7 +770,10 @@ def populate_cfg(function, builders, blocks):
                     raise ValueError(f"{mnemonic.text!r} is not a standard pcode instruction")
             except NotImplementedError as e:
                 print("ERROR: Not implemented instruction: " + mnemonic.text + " at: " + address)
-
+            except ValueError as e:
+                print("ValueError: Instruction: " + mnemonic.text + " at: " + address)
+                print(str(pcode))
+                print(str(e))
             except Exception as ex:
                 raise ex
                 errorType = str(type(ex)).replace("<class '", "").replace("'>", "")
@@ -768,6 +788,7 @@ def populate_cfg(function, builders, blocks):
 
         if block_iterator < len(blocks) and no_branch:
             builder.branch(list(blocks.values())[block_iterator])
+
 
 
 def fetch_input_varnode(builder, name):
@@ -833,6 +854,18 @@ def int_check_inputs(builder, lhs, rhs, target):
     return lhs, rhs
 
 
+def extend_operands(builder, lhs, rhs, inputLhs, inputRhs):
+    if inputLhs.get("storage") == "constant":
+        if lhs.type.width < rhs.type.width:
+            # Extend rhs to the size of lhs
+            print("extending lhs - should this happen?")
+            lhs = builder.zext(lhs, rhs.type)
+    elif inputRhs.get("storage") == "constant":
+        if rhs.type.width < lhs.type.width:
+            # Extend rhs to the size of lhs
+            rhs = builder.zext(rhs, lhs.type)
+    return lhs, rhs
+
 def check_shift_inputs(builder, lhs, rhs, target):
     if lhs.type != target:
         if lhs.type.is_pointer:
@@ -843,6 +876,8 @@ def check_shift_inputs(builder, lhs, rhs, target):
         if rhs.type.is_pointer:
             rhs = builder.ptrtoint(rhs, target)
         else:
+            if rhs.type.width > target.width:
+                print("extend to smaller size value")
             rhs = builder.zext(rhs, target)
 
     return lhs, rhs

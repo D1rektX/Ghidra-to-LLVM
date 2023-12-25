@@ -55,7 +55,7 @@ public class GhidraToXML extends HeadlessScript {
             os = os.toLowerCase();
 
             if (os.contains("win")) {
-                return "C:\\Users\\pasca\\Documents\\Code\\Uni\\iOSBinaryAnalysisLab\\lifter\\ghidra\\GhidraScripts\\output.xml";
+                return "C:\\Users\\pasca\\Documents\\Code\\Uni\\iOSBinaryAnalysisLab\\lifter\\ghidra\\Ghidra-to-LLVM\\output.xml";
             } else{
                 return "/tmp/output.xml";
             }
@@ -97,18 +97,16 @@ public class GhidraToXML extends HeadlessScript {
      */
     private Instruction replaceCallother(Instruction instruction, Assembler asm, Listing listing) throws Exception{
     	if(!instruction.toString().contains(".LOCK")) {
-        	log("Cannot replace instruction:" + instruction.getMnemonicString());
-        	log("At Address: " + instruction.getAddress());
-    		return instruction;
+        	log("ERROR: NON Implemented callover instruction: " + instruction.getMnemonicString() + " - At Address: " + instruction.getAddress());
+    		asm.assemble(instruction.getAddress(), "NOP");
+    		return listing.getInstructionAt(instruction.getAddress());
     	}
 
     	log("----------------------------------------------------------------");
-    	log("Instruction to replace: " + instruction.toString());
-    	log(instruction.getMnemonicString());
-    	log("Address: " + instruction.getAddress());
+    	log("Instruction: " + instruction.toString() + " - at: " + instruction.getAddress());
 
 
-		if(instruction.toString().contains("CMPXCHG.LOCK")){
+		if(instruction.toString().contains("CMPXCHG")){
 		    asm.assemble(instruction.getAddress(), "NOP");
         } else{
 		    asm.assemble(instruction.getAddress(), instruction.toString().replace(".LOCK", ""));
@@ -326,6 +324,7 @@ public class GhidraToXML extends HeadlessScript {
             size.setValue(registerSize.get(x));
             register.setAttributeNode(size);
             Attr flags = doc.createAttribute("flags");
+            // TODO - this can throw a nullpointer exception: return value of "ghidra.program.model.lang.Language.getRegister(String)" is null
             flags.setValue(Integer.toString(language.getRegister(regName).getTypeFlags()));
             register.setAttributeNode(flags);
             globals.appendChild(register);

@@ -123,11 +123,14 @@ else:
 
 # Convert P-code to XML
 
-if recompile and os.path.isdir(xml_tmp_file):
+if recompile and os.path.isfile(xml_tmp_file):
     print("-----------------------------------------------------")
     print("Cleaning up old results")
+    try:
+        os.remove(xml_tmp_file)
+    except:
+        print("Couldn't remove old results.")
     print("-----------------------------------------------------")
-    os.remove(xml_tmp_file)
 
 print("-----------------------------------------------------")
 print("Running Ghidra analysis and post script(s)")
@@ -155,6 +158,7 @@ else:
     seperator = "/"
     # Add code specific to Windows here
 
+# XML file is create at location that is specified by GhidraToXML line 58
 filename = results.input_file.split(seperator)[-1]
 xmlfile = output_dir + filename + '.xml'
 # subprocess.run(['mv', xml_tmp_file, xmlfile])
@@ -184,7 +188,7 @@ print("-----------------------------------------------------")
 # TODO - WHERE DO THEY COME FROM?
 if should_fix_wrong_block_endings:
     print("-----------------------------------------------------")
-    print("Finished lines: ")
+    print("Fixing lines: ")
     fix_wrong_block_endings(llvmlitefile)
     print("-----------------------------------------------------")
     print("Finished fixing incorrect block endings")
