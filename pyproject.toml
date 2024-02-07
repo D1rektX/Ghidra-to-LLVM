@@ -2,9 +2,8 @@
 name = "ghidra-to-llvm"
 version = "0.1.0"
 description = ""
-authors = ["Pascal Osterwinter <pascal.osterwinter@spotgroup.de>"]
+authors = ["Pascal Osterwinter <pascal.osterwinter@gmail.com>"]
 readme = "README.md"
-packages = [{include = "ghidra_to_llvm"}]
 
 [tool.poetry.dependencies]
 python = "^3.10"
