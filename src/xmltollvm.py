@@ -230,8 +230,10 @@ def populate_cfg(function, builders, blocks):
     stack_size = 10 * 1024 * 1024
     stack = builder.alloca(ir.IntType(8), stack_size, name="stack")
     stack_top = builder.gep(stack, [ir.Constant(int64, stack_size - 8)], name="stack_top")
-
-    builder.store(stack_top, registers["RSP"])
+    try:
+        builder.store(stack_top, registers["RSP"])
+    except:
+        print("no RSP registers.")
     builder.branch(list(blocks.values())[1])
 
 
@@ -287,7 +289,7 @@ def populate_cfg(function, builders, blocks):
                         # print("UNIMPLEMENTED LOAD: " + address + " - " + str(pcode))
                         # load_ptr = fetch_input_varnode(builder, input_0)
                         # load_ptr = builder.gep(load_ptr, [ir.Constant(int64, input_1)])
-                    if input_1.get("storage") == "unique" and output.get("storage") == "unique":
+                    if input_1.get("storage") == "unique" and output.get("storage") == "unique" or output.get("storage") == "register":
                         # This is incorrect. This is treating it as a copy, should load the memory address in the input 1
                         update_output(builder, output, load_ptr)
                     elif input_1.get("storage") == "register":
@@ -816,7 +818,12 @@ def fetch_input_varnode(builder, name):
 def update_output(builder, name, output):
     var_type = name.get("storage")
     if var_type == "register":
-        reg = registers[name.text]
+        try:
+            reg = registers[name.text]
+        except:
+            print("could not find register to update output!")
+            return
+        
         if reg.type != output.type.as_pointer():
             reg = builder.bitcast(reg, output.type.as_pointer())
         builder.store(output, reg)
