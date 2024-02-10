@@ -18,9 +18,98 @@ tests, you only need Python 3 and the modules `llvmlite` and `tomli` (and
 ### Required packages for Python 3
 ```shell
 poetry install
-poetry run python g2llvm.py /path/to/binary
-poetry run python g2llvm.py ../../../binary/BMI-Calculator
 ```
+
+### 1. Install Ghidra
+
+Ghidra is required. 
+THis project was tested with these ghidra versions:
+- 10.4
+- 11
+
+To install ghidra simply download the corresponding version vom git:
+https://github.com/NationalSecurityAgency/ghidra/releases
+
+After downloading extract the files.
+
+```shell
+curl -LO https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_11.0.1_build/ghidra_11.0.1_PUBLIC_20240130.zip
+unzip ghidra_11.0.1_PUBLIC_20240130.zip -d ../
+rm ghidra_11.0.1_PUBLIC_20240130.zip
+
+# your lifter/ghidra directory should look like this
+tree -L 1
+.
+├── g2llvm.py
+├── ghidra_11.0.1_PUBLIC
+├── GhidraScripts
+├── Ghidra-to-LLVM
+├── README.md
+├── tmp.py
+└── xmltollvm.py
+```
+
+### 2. Edit config.json
+
+Fill out the config.json file with the corresponding paths.
+- base_dir
+- ghidra_dir
+
+### 3. Setup JDK
+
+[Instructions](https://docs.oracle.com/en/java/javase/21/install/installation-jdk-linux-platforms.html#GUID-CF001E7F-7E0D-49D4-A158-9CF3ED4C247C)
+```shell
+# Download JDK:
+curl -LO https://download.oracle.com/java/21/latest/jdk-21_linux-x64_bin.deb
+# Install package:
+sudo dpkg -i jdk-21_linux-x64_bin.deb
+# check installation:
+java -version
+
+java version "21.0.2" 2024-01-16 LTS
+Java(TM) SE Runtime Environment (build 21.0.2+13-LTS-58)
+Java HotSpot(TM) 64-Bit Server VM (build 21.0.2+13-LTS-58, mixed mode, sharing)
+
+# remove package file to save space:
+rm jdk-21_linux-x64_bin.deb
+```
+
+## Usage
+To run the the tool, simply run the g2llvm.py script. It takes a single mandatory argument, the target executable.
+
+```shell
+poetry run python g2llvm.py /path/to/binary
+
+# Example
+cd lifter/ghidra/Ghidra-to-LLVM/
+binaryDir="/home/pascal/uni/iOSBinaryAnalysisLab/binary"
+poetry run python g2llvm.py $binaryDir/BMI-Calculator
+```
+
+Optional arguments:
+
+- '-out' emits intermediate files
+- '-opt X' attempts to optimize the file. Valid options 0-3. (Currently only 0 works)
+- '-cfg' saves a .PNG of the whole module CFG.
+
+The full usage can be found in the help message below, which is also available
+through `python3 g2llvm.py --help`.
+
+```
+python3 g2llvm.py [-h] [-out] [-opt OPT] [-cfg] input_file
+
+positional arguments:
+  input_file  the path of the binary file
+
+options:
+  -h, --help  show this help message and exit
+  -out        emit intermediate files
+  -opt OPT    select optimization level 0-3, default 0 (only 0 works)
+  -cfg        if set, also creates a PNG of the CFG of all functions in the
+              binary in the "graphs" folder
+```
+
+
 #### Mac Os
 poetry might not be able to install llvm giving the following error when attempting an installation:
 
@@ -50,45 +139,8 @@ python g2llvm.py ../../../binary/BMI-Calculator
 
 ## Installation Instructions (Linux Only)
 
-### 1. Install Ghidra
 
-https://github.com/NationalSecurityAgency/ghidra/releases
 
-- Extract the JDK: tar xvf <JDK distribution .tar.gz>
-- Open ~/.bashrc with an editor of your choice. For example:vi ~/.bashrc
-- At the very end of the file, add the JDK bin directory to the PATH variable:export PATH=<path of extracted JDK dir>/bin:$PATH
-- Save file
-- Restart any open terminal windows for changes to take effect
-  
-### 2. Edit config.json
-
-Fill out the config.json file with the corresponding paths.
-
-## Usage
-To run the the tool, simply run the g2llvm.py script. It takes a single mandatory argument, the target executable.
-
-Optional arguments:
-
-- '-out' emits intermediate files
-- '-opt X' attempts to optimize the file. Valid options 0-3. (Currently only 0 works)
-- '-cfg' saves a .PNG of the whole module CFG.
-
-The full usage can be found in the help message below, which is also available
-through `python3 g2llvm.py --help`.
-
-```
-python3 g2llvm.py [-h] [-out] [-opt OPT] [-cfg] input_file
-
-positional arguments:
-  input_file  the path of the binary file
-
-options:
-  -h, --help  show this help message and exit
-  -out        emit intermediate files
-  -opt OPT    select optimization level 0-3, default 0 (only 0 works)
-  -cfg        if set, also creates a PNG of the CFG of all functions in the
-              binary in the "graphs" folder
-```
 
 ### Tests
 
