@@ -8,7 +8,7 @@ import re
 import shutil
 import subprocess
 import sys
-
+import time
 import src.xmltollvm as xmltollvm
 import src.lifting_opt_verify as opt_verify
 
@@ -132,6 +132,10 @@ if recompile and os.path.isfile(xml_tmp_file):
         print("Couldn't remove old results.")
     print("-----------------------------------------------------")
 
+
+# Record the start time
+start_time = time.time()
+
 print("-----------------------------------------------------")
 print("Running Ghidra analysis and post script(s)")
 print("-----------------------------------------------------")
@@ -207,7 +211,7 @@ llfile = str(filename + '.ll')
 if results.output:
     llfile = results.output
 else:
-    llfile = paths["output_dir"] + str(filename + '.ll')
+    llfile = paths["output_dir"] + str(filename + "_opt_" + str(opt_level) + '.ll')
 f = open(llfile, 'w')
 f.write(str(module))
 f.close()
@@ -216,11 +220,19 @@ print("-----------------------------------------------------")
 print("Finished verification")
 print("-----------------------------------------------------")
 
+# Record the end time
+end_time = time.time()
+
+# Calculate the difference
+runtime = end_time - start_time
+
+print("Decompilation took: ", runtime, "seconds")
+
 # Output CFGs
 if results.cfg:
     subprocess.run(['rm', '-rf', "graphs"])
-    subprocess.run(['mkdir', "graphs"])
-    graphs = opt_verify.graph(module)
+    subprocess.run(['mkdir', paths["output_dir"] + "graphs"])
+    graphs = opt_verify.graph(module, paths["output_dir"])
 
 # Cleanup
 if not results.out:
