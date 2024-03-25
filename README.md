@@ -74,6 +74,9 @@ Java HotSpot(TM) 64-Bit Server VM (build 21.0.2+13-LTS-58, mixed mode, sharing)
 rm jdk-21_linux-x64_bin.deb
 ```
 
+## Heap space size
+In case the heap overflows this can be adjusted in the ghidra analyzeHeadless executable. 
+
 ## Usage
 To run the the tool, simply run the g2llvm.py script. It takes a single mandatory argument, the target executable.
 
@@ -142,7 +145,8 @@ python g2llvm.py ../../../binary/BMI-Calculator
 
 
 
-### Tests
+
+## Tests
 
 
 If you want to run the tests, make sure you have `make` installed and the

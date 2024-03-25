@@ -22,13 +22,13 @@ def verify(module):
     return module_bc
 
 
-def graph(module):
+def graph(module, base_directory):
     module_ref = llvm.parse_assembly(str(module))
     functions = module_ref.functions
     images = []
     for func in functions:
         cfg = llvm.get_function_cfg(func)
         graph = llvm.view_dot_graph(cfg, view=False)
-        image = graph.render(format='png', directory="graphs")
+        image = graph.render(format='png', directory=base_directory + "graphs")
         images.append(image)
     return images

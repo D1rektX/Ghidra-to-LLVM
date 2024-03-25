@@ -200,25 +200,29 @@ if should_fix_wrong_block_endings:
     f = open("new_" + llvmlitefile, 'r')
     module = f.read()
 
-module = opt_verify.optimize(module, opt_level)
 
-print("-----------------------------------------------------")
-print("Finished optimizations")
-print("-----------------------------------------------------")
-# Verify
-module = opt_verify.verify(module)
-llfile = str(filename + '.ll')
-if results.output:
-    llfile = results.output
-else:
-    llfile = paths["output_dir"] + str(filename + "_opt_" + str(opt_level) + '.ll')
-f = open(llfile, 'w')
-f.write(str(module))
-f.close()
+for i in range(4):
+    print("Opt level " + str(i))
 
-print("-----------------------------------------------------")
-print("Finished verification")
-print("-----------------------------------------------------")
+    moduleNew = opt_verify.optimize(module, i)
+
+    print("-----------------------------------------------------")
+    print("Finished optimizations")
+    print("-----------------------------------------------------")
+    # Verify
+    moduleNew = opt_verify.verify(moduleNew)
+    llfile = str(filename + '.ll')
+    if results.output:
+        llfile = results.output
+    else:
+        llfile = paths["output_dir"] + str(filename + "_opt_" + str(i) + '.ll')
+    f = open(llfile, 'w')
+    f.write(str(moduleNew))
+    f.close()
+
+    print("-----------------------------------------------------")
+    print("Finished verification")
+    print("-----------------------------------------------------")
 
 # Record the end time
 end_time = time.time()

@@ -233,9 +233,9 @@ def populate_cfg(function, builders, blocks):
     try:
         builder.store(stack_top, registers["RSP"])
     except:
-        print("no RSP registers.")
+        pass
+        # print("no RSP registers.")
     builder.branch(list(blocks.values())[1])
-
 
     for block_iterator, instruction in enumerate(function.find("instructions"), start=2):
 
