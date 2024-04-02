@@ -55,7 +55,7 @@ public class GhidraToXML extends HeadlessScript {
             os = os.toLowerCase();
 
             if (os.contains("win")) {
-                return "C:\\Users\\pasca\\Documents\\Code\\Uni\\iOSBinaryAnalysisLab\\lifter\\ghidra\\Ghidra-to-LLVM\\output.xml";
+                return "C:\\Users\\pasca\\Documents\\Code\\Uni\\iOSBinaryAnalysisLab\\lifter\\improvement\\Ghidra-to-LLVM\\output.xml";
             } else{
                 return "/tmp/output.xml";
             }
@@ -65,57 +65,55 @@ public class GhidraToXML extends HeadlessScript {
         }
         //return "/tmp/output.xml";
     }
-
+    
     private void log(String msg) {
     	println(msg);
     	System.out.println(msg);
     }
-
+    
     private void inspectInstructionAndPCodes(Instruction instruction){
     	log("----------------------------------------------------------------");
     	log("Instruction: " + instruction.toString());
     	log(instruction.getMnemonicString());
     	log("Address: " + instruction.getAddress());
-
+    	
         PcodeOp[] pcode = instruction.getPcode();
-        // TODO - remove CALLOTHER
-
+        
         for (int i = 0; i < pcode.length; i++) {
 			log(pcode[i].getMnemonic());
 		}
-
+        	
 		// log("Next Address: ");
 		// log(instruction.next().getAddress().toString());
     	log("----------------------------------------------------------------");
     }
-
+    
     /*
      * Taken from AssembleScript.java -> basic ghidra script
-     * TODO: check if instead of replacing the llvm translation needs to use atomic functions
-     * I.E.: ADD.LOCK -> replaced by ADD but this could have side effects ->
-     * so try with ADD.LOCK and translate this to atomic add in xmltollvm.py
      */
     private Instruction replaceCallother(Instruction instruction, Assembler asm, Listing listing) throws Exception{
     	if(!instruction.toString().contains(".LOCK")) {
-        	log("ERROR: NON Implemented callover instruction: " + instruction.getMnemonicString() + " - At Address: " + instruction.getAddress());
-    		asm.assemble(instruction.getAddress(), "NOP");
-    		return listing.getInstructionAt(instruction.getAddress());
+        	log("Cannot replace instruction:" + instruction.getMnemonicString());
+        	log("At Address: " + instruction.getAddress());
+    		return instruction;
     	}
 
     	log("----------------------------------------------------------------");
-    	log("Instruction: " + instruction.toString() + " - at: " + instruction.getAddress());
+    	log("Instruction to replace: " + instruction.toString());
+    	log(instruction.getMnemonicString());
+    	log("Address: " + instruction.getAddress());
+    	
+        log("New instruction: " + instruction.toString().replace(".LOCK", ""));
 
-
-		if(instruction.toString().contains("CMPXCHG")){
+        if(instruction.toString().contains("CMPXCHG")){
 		    asm.assemble(instruction.getAddress(), "NOP");
         } else{
 		    asm.assemble(instruction.getAddress(), instruction.toString().replace(".LOCK", ""));
         }
-        log("New instruction: " + listing.getInstructionAt(instruction.getAddress()).toString());
     	log("----------------------------------------------------------------");
 		return listing.getInstructionAt(instruction.getAddress());
     }
-
+    
 
     @Override
     protected void run() throws Exception {
@@ -139,7 +137,7 @@ public class GhidraToXML extends HeadlessScript {
         Function func = null;
 
         Assembler asm = Assemblers.getAssembler(currentProgram);
-
+        
         Element globals = doc.createElement("globals");
         rootElement.appendChild(globals);
         Element memory = doc.createElement("memory");
@@ -218,11 +216,10 @@ public class GhidraToXML extends HeadlessScript {
                 Instruction inst = ii.next();
                 PcodeOp[] pcode = inst.getPcode();
                 // TODO - remove CALLOTHER
-
+                
                 for (int i = 0; i < pcode.length; i++) {
     				if (pcode[i].getOpcode() == PcodeOp.CALLOTHER) {
     					inst = replaceCallother(inst, asm, listing);
-    					// TODO - CMPXCHG - add custom pcode to xml with instruction values
     					pcode = inst.getPcode();
     					break;
     					// throw new Exception("ENDING THE SCRIPT.");
@@ -314,7 +311,7 @@ public class GhidraToXML extends HeadlessScript {
                 y++;
             }
         }
-        for (int x = 0; x < registerList.size(); x++) {
+                for (int x = 0; x < registerList.size(); x++) {
             String regName = registerList.get(x);
             Element register = doc.createElement("register");
             Attr name = doc.createAttribute("name");
@@ -324,8 +321,12 @@ public class GhidraToXML extends HeadlessScript {
             size.setValue(registerSize.get(x));
             register.setAttributeNode(size);
             Attr flags = doc.createAttribute("flags");
-            // TODO - this can throw a nullpointer exception: return value of "ghidra.program.model.lang.Language.getRegister(String)" is null
-            flags.setValue(Integer.toString(language.getRegister(regName).getTypeFlags()));
+            try {
+                flags.setValue(Integer.toString(language.getRegister(regName).getTypeFlags()));
+			} catch (Exception e) {
+				println("Error parsing register: " + regName);
+                continue;
+			}
             register.setAttributeNode(flags);
             globals.appendChild(register);
         }
