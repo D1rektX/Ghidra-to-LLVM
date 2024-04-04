@@ -13,6 +13,10 @@ import src.xmltollvm as xmltollvm
 import src.lifting_opt_verify as opt_verify
 
 
+def fix_windows_path(path):
+    if is_windows:
+        return path.replace("/", "\\")
+
 def load_config():
     with open('config.json', 'r') as config_file:
         return json.load(config_file)
@@ -30,7 +34,7 @@ def construct_paths(config, base_dir):
     paths["ghidra_headless"] = os.path.join(
         paths["ghidra_dir"] + config["directories"]["headless_dir"][platform.system().lower()])
     for key, path in paths.items():
-
+        path = fix_windows_path(path)
         if key == "xml_tmp_file" and recompile:
             continue
         assert os.path.isdir(path) or os.path.isfile(path), f"Invalid path: {key} = '{path}'"
@@ -41,7 +45,7 @@ def check_previous_line_is_correctly_ended(previous_line):
     return previous_line and any(previous_line.strip().startswith(s) for s in valid_endings)
 
 
-def fix_wrong_block_endings(file_path):
+def fix_wrong_block_endings(file_path, new_file_path):
 
     regex = r'"([0-9a-fA-F]{9})":\n'
     pattern = re.compile(regex)
@@ -70,21 +74,35 @@ def fix_wrong_block_endings(file_path):
                     # return True  # Found the pattern
             previous_line = line.rstrip('\n')  # Update the previous line
         # Write modified lines back to the file
-        with open("new_" + file_path, 'w') as file:
+        with open(new_file_path, 'w') as file:
             file.writelines(lines)
 
+
+# Check the operating system
+system = platform.system()
+is_mac_os = system == "Darwin"
+is_windows = system == "Windows"
+is_linux = system == "Linux"
 
 # choose if ghidra should run
 # if not the resulting file is needed!
 recompile = True
+
+# chose if files created in the process should be cleaned up at the end
+cleanup = False
+
 # choose if incorrect line endings in the llvmlite file should be fixed
-should_fix_wrong_block_endings = True
+should_fix_wrong_block_endings = False
 # list of valid commands that can occur bevor a new label address
 valid_endings = ["br ", "ret ", "indirectbr"]
+
+# scripts that should run in ghidra headless before ghidra to xml
+additional_scripts = []
 
 # These shouldn't need to be changed
 prj_name = "lifting"
 xml_script = "GhidraToXML.java"
+demangle_script = "swift_demangler.py"
 
 # Argument parsing
 parser = argparse.ArgumentParser(description='This script lifts a binary from executable to LLVM IR.')
@@ -136,26 +154,41 @@ if recompile and os.path.isfile(xml_tmp_file):
 # Record the start time
 start_time = time.time()
 
+
+# List of arguments to be passed to subprocess.run()
+headless_arguments = [
+    ghidra_headless_loc,  # Path to the Ghidra analyzeHeadless executable
+    project_dir,  # Path to the Ghidra project directory
+    prj_name,  # Ghidra project name
+    '-import',  # Import command to specify that you want to import a binary
+    results.input_file,  # Path to the input binary file to be imported
+    '-scriptPath',  # Path to the ghidra scripts
+    script_dir,
+    '-overwrite',  # Overwrite command to specify that you want to overwrite an existing project
+    '-deleteProject'  # DeleteProject command to specify that you want to delete the existing project
+]
+
+# Conditionally add another post script argument if running on macOS
+if is_mac_os:
+    additional_scripts.extend([demangle_script])
+
+# additional_scripts.extend(["FFsBeGoneScript.java"])
+
+
+# Append additional post script arguments from the list
+additional_scripts.extend([xml_script])
+for script in additional_scripts:
+    headless_arguments.extend(['-postScript', script])
+
 print("-----------------------------------------------------")
 print("Running Ghidra analysis and post script(s)")
+print("Post scripts: " + str(additional_scripts))
 print("-----------------------------------------------------")
 if recompile:
-    subprocess.run([
-        ghidra_headless_loc,  # Path to the Ghidra analyzeHeadless executable
-        project_dir,  # Path to the Ghidra project directory
-        prj_name,  # Ghidra project name
-        '-import',  # Import command to specify that you want to import a binary
-        results.input_file,  # Path to the input binary file to be imported
-        '-scriptPath',  # Path to the ghidra scripts
-        script_dir,
-        '-postScript',  # PostScript command to specify that you want to run a script after import
-        xml_script,  # Name of the GhidraToXML.java script
-        '-overwrite',  # Overwrite command to specify that you want to overwrite an existing project
-        '-deleteProject'  # DeleteProject command to specify that you want to delete the existing project
-    ])
+    subprocess.run(headless_arguments)
 
 # get line seperator
-if sys.platform.startswith('win'):
+if is_windows:
     # Windows-specific code
     seperator = "\\"
 else:
@@ -179,7 +212,7 @@ print("Finished Ghidra-To-Xml conversion")
 print("-----------------------------------------------------")
 # Lift to LLVM
 module = xmltollvm.lift(xmlfile)
-llvmlitefile = str(filename + '.llvmlite')
+llvmlitefile = paths["output_dir"] + str(filename + '.llvmlite')
 f = open(llvmlitefile, 'w')
 f.write(str(module))
 f.close()
@@ -193,11 +226,12 @@ print("-----------------------------------------------------")
 if should_fix_wrong_block_endings:
     print("-----------------------------------------------------")
     print("Fixing lines: ")
-    fix_wrong_block_endings(llvmlitefile)
+    new_llvmlite_file = llvmlitefile.split(".")[0] + "_fixed_line_ending" + llvmlitefile.split(".")[1]
+    fix_wrong_block_endings(llvmlitefile, new_llvmlite_file)
     print("-----------------------------------------------------")
     print("Finished fixing incorrect block endings")
     print("-----------------------------------------------------")
-    f = open("new_" + llvmlitefile, 'r')
+    f = open(new_llvmlite_file, 'r')
     module = f.read()
 
 
@@ -239,8 +273,15 @@ if results.cfg:
     graphs = opt_verify.graph(module, paths["output_dir"])
 
 # Cleanup
-if not results.out:
-    os.remove(xmlfile)
+if cleanup:
+    if not results.out:
+        os.remove(xmlfile)
+        if should_fix_wrong_block_endings:
+            os.remove("new_" + llvmlitefile)
+        os.remove(llvmlitefile)
+else:
+    print("xml file: " + fix_windows_path(xmlfile))
+    print("llvmlite file: " + fix_windows_path(llvmlitefile))
     if should_fix_wrong_block_endings:
-        os.remove("new_" + llvmlitefile)
-    os.remove(llvmlitefile)
+        print("fixed line endings: " + fix_windows_path(new_llvmlite_file))
+print("llvm file: " + fix_windows_path(llfile))

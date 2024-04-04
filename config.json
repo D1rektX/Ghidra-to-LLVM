@@ -1,7 +1,7 @@
 {
     "base_dir": {
         "linux": "/home/pascal/uni/iOSBinaryAnalysisLab",
-        "windows": "C:/Users/pasca/Documents/Code/Uni/iOSBinaryAnalysisLab/",
+        "windows": "C:\\Users\\pasca/Documents\\Code\\Uni\\iOSBinaryAnalysisLab\\",
         "darwin": "/Users/pascalosterwinter/Documents/iOSBinaryAnalysisLab/"
     },
     "directories": {
@@ -9,19 +9,19 @@
         "headless_dir":{
              "linux": "/support/analyzeHeadless",
              "darwin": "/support/analyzeHeadless",
-            "windows": "/support/analyzeHeadless.bat"
+            "windows": "\\support\\analyzeHeadless.bat"
         },
-        "project_dir": "lifter/improvement",
+        "project_dir": "lifter/improvement/",
         "script_dir": {
             "linux": "lifter/improvement/Ghidra-to-LLVM/src",
-            "windows": "lifter/improvement/Ghidra-to-LLVM/src",
+            "windows": "lifter\\improvement\\Ghidra-to-LLVM\\src",
             "darwin": "lifter/improvement/Ghidra-to-LLVM/src"
         },
         "xml_tmp_file": {
             "linux": "/tmp/output.xml",
             "darwin": "/tmp/output.xml",
-            "windows": "C:/Users/pasca/Documents/Code/Uni/iOSBinaryAnalysisLab/lifter/improvement/Ghidra-to-LLVM/output.xml"
+            "windows": "C:\\Users\\pasca\\Documents\\Code\\Uni\\iOSBinaryAnalysisLab\\lifter\\improvement\\Ghidra-to-LLVM\\output.xml"
         },
-        "output_dir": "results/improvement"
+        "output_dir": "results/improvement/"
     }
 }
