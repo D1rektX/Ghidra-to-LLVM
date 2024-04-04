@@ -54,6 +54,17 @@ def lift(filename):
         var.linkage = 'internal'
         registers[register_name] = var
 
+    # Create RSP if it does not exist
+    if "RSP" not in registers:
+        register_name = "RSP"
+        register_type = ir.IntType(8)
+        pointers.append(register_name)
+        register_type = ir.PointerType(register_type)
+        var = ir.GlobalVariable(module, register_type, register_name)
+        var.initializer = ir.Constant(register_type, None)
+        var.linkage = 'internal'
+        registers[register_name] = var
+
     for memory_location in root.find('memory').findall('memory'):
         var = ir.GlobalVariable(module, ir.IntType(8 * int(memory_location.get('size'))), memory_location.get('name'))
         var.initializer = ir.Constant(ir.IntType(8 * int(memory_location.get('size'))), None)
@@ -233,8 +244,8 @@ def populate_cfg(function, builders, blocks):
     try:
         builder.store(stack_top, registers["RSP"])
     except:
-        pass
-        # print("no RSP registers.")
+        raise Exception("No RSP registers declared.")
+
     builder.branch(list(blocks.values())[1])
 
     for block_iterator, instruction in enumerate(function.find("instructions"), start=2):
