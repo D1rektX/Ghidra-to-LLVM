@@ -150,7 +150,8 @@ public class GhidraToXML extends HeadlessScript {
 
         while (fi.hasNext()) {
             func = fi.next();
-
+            // TODO - unmangle name
+            // getDemangled(String mangled)
             // function element
             Element functionElement = doc.createElement("function");
             rootElement.appendChild(functionElement);
@@ -311,7 +312,7 @@ public class GhidraToXML extends HeadlessScript {
                 y++;
             }
         }
-                for (int x = 0; x < registerList.size(); x++) {
+        for (int x = 0; x < registerList.size(); x++) {
             String regName = registerList.get(x);
             Element register = doc.createElement("register");
             Attr name = doc.createAttribute("name");
@@ -324,9 +325,12 @@ public class GhidraToXML extends HeadlessScript {
             try {
                 flags.setValue(Integer.toString(language.getRegister(regName).getTypeFlags()));
 			} catch (Exception e) {
-				println("Error parsing register: " + regName);
-                continue;
-			}
+                // if the register cannot be found manually set the name and flags
+                // this might occur on vector registers.
+                // default value for vector registers is 128
+                // language.getRegister(language.getSortedVectorRegisters().get(1).getName()).getTypeFlags()
+                flags.setValue("128");
+            }
             register.setAttributeNode(flags);
             globals.appendChild(register);
         }
