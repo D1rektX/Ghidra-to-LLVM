@@ -172,7 +172,7 @@ headless_arguments = [
 if is_mac_os:
     additional_scripts.extend([demangle_script])
 
-# additional_scripts.extend(["FFsBeGoneScript.java"])
+additional_scripts.extend(["FFsBeGoneScript.java"])
 
 
 # Append additional post script arguments from the list
@@ -226,7 +226,7 @@ print("-----------------------------------------------------")
 if should_fix_wrong_block_endings:
     print("-----------------------------------------------------")
     print("Fixing lines: ")
-    new_llvmlite_file = llvmlitefile.split(".")[0] + "_fixed_line_ending" + llvmlitefile.split(".")[1]
+    new_llvmlite_file = llvmlitefile.split(".")[0] + "_fixed_line_ending." + llvmlitefile.split(".")[1]
     fix_wrong_block_endings(llvmlitefile, new_llvmlite_file)
     print("-----------------------------------------------------")
     print("Finished fixing incorrect block endings")
@@ -245,6 +245,7 @@ for i in range(4):
     print("-----------------------------------------------------")
     # Verify
     moduleNew = opt_verify.verify(moduleNew)
+    moduleNew.name = results.input_file
     llfile = str(filename + '.ll')
     if results.output:
         llfile = results.output
