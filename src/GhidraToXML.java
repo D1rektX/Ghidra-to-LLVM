@@ -220,6 +220,10 @@ public class GhidraToXML extends HeadlessScript {
                 
                 for (int i = 0; i < pcode.length; i++) {
     				if (pcode[i].getOpcode() == PcodeOp.CALLOTHER) {
+                        if(inst.toString().contains("brk")) {
+                            // ignore brk CALLOTHER and just take the branchind op.
+                            continue;
+                        }
     					inst = replaceCallother(inst, asm, listing);
     					pcode = inst.getPcode();
     					break;
@@ -238,6 +242,10 @@ public class GhidraToXML extends HeadlessScript {
                 Element pcodes = doc.createElement("pcodes");
                 instructionElement.appendChild(pcodes);
                 for (int i = 0; i < pcode.length; i++) {
+                    if(inst.toString().contains("brk") && pcode[i].getOpcode() == PcodeOp.CALLOTHER) {
+                        // ignore brk CALLOTHER and just take the branchind op.
+                        continue;
+                    }
                     Element pcodeElement = doc.createElement("pcode_" + i);
                     pcodes.appendChild(pcodeElement);
                     Varnode vnodeOutput = pcode[i].getOutput();
