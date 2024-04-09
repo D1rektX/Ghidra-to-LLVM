@@ -92,6 +92,11 @@ public class GhidraToXML extends HeadlessScript {
      * Taken from AssembleScript.java -> basic ghidra script
      */
     private Instruction replaceCallother(Instruction instruction, Assembler asm, Listing listing) throws Exception{
+    	if(instruction.getMnemonicString().contains("dmb")){
+            // data memory barrier can be ignored!
+		    asm.assemble(instruction.getAddress(), "nop");
+		    return listing.getInstructionAt(instruction.getAddress());
+        }
     	if(!instruction.toString().contains(".LOCK")) {
         	log("Cannot replace instruction:" + instruction.getMnemonicString());
         	log("At Address: " + instruction.getAddress());
@@ -106,14 +111,17 @@ public class GhidraToXML extends HeadlessScript {
         log("New instruction: " + instruction.toString().replace(".LOCK", ""));
 
         if(instruction.toString().contains("CMPXCHG")){
+            // TEMPORARY FIX
+
 		    asm.assemble(instruction.getAddress(), "NOP");
-        } else{
+        }
+        else{
 		    asm.assemble(instruction.getAddress(), instruction.toString().replace(".LOCK", ""));
         }
     	log("----------------------------------------------------------------");
 		return listing.getInstructionAt(instruction.getAddress());
     }
-    
+
 
     @Override
     protected void run() throws Exception {
@@ -137,7 +145,7 @@ public class GhidraToXML extends HeadlessScript {
         Function func = null;
 
         Assembler asm = Assemblers.getAssembler(currentProgram);
-        
+
         Element globals = doc.createElement("globals");
         rootElement.appendChild(globals);
         Element memory = doc.createElement("memory");
@@ -217,10 +225,13 @@ public class GhidraToXML extends HeadlessScript {
                 Instruction inst = ii.next();
                 PcodeOp[] pcode = inst.getPcode();
                 // TODO - remove CALLOTHER
-                
+
                 for (int i = 0; i < pcode.length; i++) {
     				if (pcode[i].getOpcode() == PcodeOp.CALLOTHER) {
-                        if(inst.toString().contains("brk")) {
+                        if(inst.getMnemonicString().contains("brk")) {
+                            // ignore brk CALLOTHER and just take the branchind op.
+                            continue;
+                        } else if(inst.getMnemonicString().contains("udf")) {
                             // ignore brk CALLOTHER and just take the branchind op.
                             continue;
                         }
@@ -242,10 +253,17 @@ public class GhidraToXML extends HeadlessScript {
                 Element pcodes = doc.createElement("pcodes");
                 instructionElement.appendChild(pcodes);
                 for (int i = 0; i < pcode.length; i++) {
-                    if(inst.toString().contains("brk") && pcode[i].getOpcode() == PcodeOp.CALLOTHER) {
-                        // ignore brk CALLOTHER and just take the branchind op.
-                        continue;
+                    if(pcode[i].getOpcode() == PcodeOp.CALLOTHER){
+                        // HANDLE CALLOTHER!
+                        if(inst.getMnemonicString().contains("brk")) {
+                            // ignore brk CALLOTHER and just take the branchind op.
+                            continue;
+                        } else if(inst.getMnemonicString().contains("udf")) {
+                            // ignore exception CALLOTHER and just take the branchind op.
+                            continue;
+                        }
                     }
+
                     Element pcodeElement = doc.createElement("pcode_" + i);
                     pcodes.appendChild(pcodeElement);
                     Varnode vnodeOutput = pcode[i].getOutput();

@@ -16,6 +16,8 @@ import src.lifting_opt_verify as opt_verify
 def fix_windows_path(path):
     if is_windows:
         return path.replace("/", "\\")
+    else:
+        return path
 
 def load_config():
     with open('config.json', 'r') as config_file:
@@ -173,6 +175,7 @@ if is_mac_os:
     additional_scripts.extend([demangle_script])
 
 additional_scripts.extend(["FFsBeGoneScript.java"])
+additional_scripts.extend(["AutoRenameSimpleLabels.java"])
 
 
 # Append additional post script arguments from the list

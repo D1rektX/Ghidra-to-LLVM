@@ -28,10 +28,6 @@ public class InspectPcodes extends GhidraScript {
 		
 		log("----------------------------------------------------------------");
 
-		if(instruction.toString().contains("brk")) {
-			log("Removing brk instruction...");
-			patchBRK(instruction, asm);
-		}
 
 	}
 
